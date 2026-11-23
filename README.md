@@ -68,15 +68,19 @@ npm run build
 
 ## Running the app
 
-From the `backend` folder:
+Open two terminals in the `backend` folder:
 
 ```bash
+# Terminal 1: the Laravel app
 php artisan serve
+
+# Terminal 2: styles and scripts (updates the page as you edit)
+npm run dev
 ```
 
-Then open http://127.0.0.1:8000.
+Then open http://127.0.0.1:8000. Keep both terminals open while you use the app, and press `Ctrl + C` in each to stop.
 
-To see style changes live while you work, also run `npm run dev` in a second terminal.
+`npm run build` is only needed when you put the app on a real server.
 
 ### Sample accounts
 
