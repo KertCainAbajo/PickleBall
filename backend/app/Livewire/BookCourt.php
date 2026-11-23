@@ -20,7 +20,8 @@ class BookCourt extends Component
     #[Url]
     public string $date = '';
 
-    /** Selected start slot, "HH:MM". */
+    /** Selected start slot, "HH:MM". Can be preselected from a link, e.g. the home page schedule (?start=15:00). */
+    #[Url(as: 'start', except: null)]
     public ?string $startTime = null;
 
     public int $duration = 1;
@@ -37,6 +38,15 @@ class BookCourt extends Component
 
         if (! $courts->contains('id', $this->courtId)) {
             $this->courtId = $courts->first()?->id;
+        }
+
+        // Only keep a start time from the link if that hour is still free.
+        if ($this->startTime !== null) {
+            $slot = collect($this->slots())->firstWhere('start_time', $this->startTime);
+
+            if (! $slot || ! $slot['available']) {
+                $this->startTime = null;
+            }
         }
     }
 

@@ -1,10 +1,9 @@
-<div class="page">
+<div>
     @php($fmt = fn ($t, $f = 'g:i A') => \Carbon\Carbon::parse($t)->format($f))
 
-    <header class="mb-8 max-w-2xl">
-        <h1 class="page-title text-4xl">Book a court</h1>
-        <p class="mt-3 text-navy-700">Choose a court, a day and when you want to start. You can add rental paddles on the next step.</p>
-    </header>
+    <x-page-header title="Book a court" subtitle="Choose a court, a day and when you want to start. You can add rental paddles on the next step." />
+
+<div class="page">
 
     @if ($courts->isEmpty())
         <p class="card p-8 text-navy-700">No courts are open for booking right now. Check back soon.</p>
@@ -194,4 +193,5 @@
             </aside>
         </div>
     @endif
+</div>
 </div>

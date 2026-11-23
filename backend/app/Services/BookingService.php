@@ -183,7 +183,9 @@ class BookingService
     /**
      * Slots for a court on a date, each marked available or not. One query.
      *
-     * @return array<int, array{start_time:string, end_time:string, available:bool}>
+     * `available` = can be booked now. `taken` = held by a booking. `past` = already started.
+     *
+     * @return array<int, array{start_time:string, end_time:string, available:bool, taken:bool, past:bool}>
      */
     public function courtSlots(Court $court, Carbon|string $date): array
     {
@@ -206,11 +208,14 @@ class BookingService
             $end = $next->format('H:i:s');
 
             $isTaken = $taken->contains(fn (array $range) => $range[0] < $end && $range[1] > $start);
+            $isPast = $cursor->lte($now);
 
             $slots[] = [
                 'start_time' => substr($start, 0, 5),
                 'end_time' => substr($end, 0, 5),
-                'available' => ! $isTaken && $cursor->gt($now),
+                'available' => ! $isTaken && ! $isPast,
+                'taken' => $isTaken,
+                'past' => $isPast,
             ];
 
             $cursor = $next;

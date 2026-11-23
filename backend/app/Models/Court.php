@@ -25,6 +25,16 @@ class Court extends Model
 {
     use HasFactory;
 
+    /** Cache key for the club opening hours shown in the site footer. */
+    public const HOURS_CACHE_KEY = 'club-hours';
+
+    protected static function booted(): void
+    {
+        // Any change to a court can change the club's hours.
+        static::saved(fn () => cache()->forget(self::HOURS_CACHE_KEY));
+        static::deleted(fn () => cache()->forget(self::HOURS_CACHE_KEY));
+    }
+
     protected function casts(): array
     {
         return [

@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -18,13 +20,34 @@ use Illuminate\Support\Collection;
  * @property string $hourly_rate
  * @property int $stock_quantity
  * @property bool $is_active
+ * @property string|null $image_path relative to public/, e.g. "uploads/paddles/abc.jpg"
+ * @property-read string|null $image_url
  * @property int $available_quantity only set by BookingService::paddleAvailability()
  * @property-read \Illuminate\Database\Eloquent\Collection<int, BookingPaddle> $rentals
  */
-#[Fillable(['name', 'brand', 'description', 'hourly_rate', 'stock_quantity', 'is_active'])]
+#[Fillable(['name', 'brand', 'description', 'image_path', 'hourly_rate', 'stock_quantity', 'is_active'])]
 class Paddle extends Model
 {
     use HasFactory;
+
+    /** Folder (inside the "uploads" disk) where admin-uploaded paddle photos go. */
+    public const UPLOAD_DIR = 'paddles';
+
+    /** Public URL of the photo, or null when the paddle has none (views then draw a paddle). */
+    protected function imageUrl(): Attribute
+    {
+        return Attribute::get(
+            fn () => $this->image_path ? asset($this->image_path) : null,
+        );
+    }
+
+    /** Delete the photo file if it was uploaded by an admin (bundled default images are kept). */
+    public function deleteUploadedImage(): void
+    {
+        if ($this->image_path && str_starts_with($this->image_path, 'uploads/')) {
+            Storage::disk('uploads')->delete(substr($this->image_path, strlen('uploads/')));
+        }
+    }
 
     protected function casts(): array
     {

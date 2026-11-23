@@ -13,7 +13,7 @@
 <body class="flex min-h-screen flex-col bg-concrete font-sans text-navy-900 antialiased">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2">Skip to content</a>
 
-    <header class="relative z-30 border-b border-line/10 bg-navy-900 text-line">
+    <header class="sticky top-0 z-40 border-b border-line/10 bg-navy-900 text-line">
         <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-2.5 sm:px-6" x-data="{ open: false }" @keydown.escape.window="open = false">
             <a href="{{ route('home') }}" wire:navigate class="flex items-center gap-3 rounded-sm">
                 <img src="{{ asset('images/logo-sm.png') }}" alt="" class="h-11 w-auto" width="105" height="112">
@@ -32,7 +32,7 @@
             @endphp
 
             <div id="site-menu"
-                 class="absolute inset-x-0 top-full flex-col gap-1 border-b border-line/10 bg-navy-900 px-4 pb-4 md:static md:flex md:flex-row md:items-center md:gap-1 md:border-0 md:p-0"
+                 class="absolute inset-x-0 top-full flex-col gap-1 border-b border-line/10 bg-navy-900 px-4 pb-4 md:static md:flex md:flex-row md:items-center md:gap-1 md:border-0 md:bg-transparent md:p-0"
                  :class="open ? 'flex' : 'hidden'">
                 <a href="{{ route('book') }}" wire:navigate class="{{ $link('book') }}">Book a court</a>
                 @auth
@@ -70,19 +70,6 @@
         {{ $slot }}
     </main>
 
-    <footer class="bg-navy-900 text-line/60">
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-6 text-sm sm:px-6">
-            <div class="flex items-center gap-3">
-                <img src="{{ asset('images/logo-sm.png') }}" alt="" class="h-8 w-auto" width="105" height="112">
-                <span>&copy; {{ date('Y') }} PickleBall Club</span>
-            </div>
-            <nav class="flex gap-5" aria-label="Footer">
-                <a href="{{ route('book') }}" wire:navigate class="hover:text-line">Book a court</a>
-                @auth
-                    <a href="{{ route('bookings.index') }}" wire:navigate class="hover:text-line">My bookings</a>
-                @endauth
-            </nav>
-        </div>
-    </footer>
+    <x-site-footer />
 </body>
 </html>

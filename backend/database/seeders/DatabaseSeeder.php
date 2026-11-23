@@ -43,14 +43,26 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
+        // Brand product photos ship in public/images/paddles; admins can replace them in Admin > Paddles.
+        // 'was' = the old sample name, so re-seeding renames existing rows instead of adding duplicates.
         $paddles = [
-            ['name' => 'Standard Paddle', 'brand' => 'Franklin', 'hourly_rate' => 50, 'stock_quantity' => 20, 'description' => 'Good all-around paddle for beginners.'],
-            ['name' => 'Control Paddle', 'brand' => 'Selkirk', 'hourly_rate' => 100, 'stock_quantity' => 10, 'description' => 'Lightweight paddle for better control.'],
-            ['name' => 'Power Paddle', 'brand' => 'JOOLA', 'hourly_rate' => 150, 'stock_quantity' => 6, 'description' => 'Carbon-face paddle for advanced players.'],
+            ['was' => 'Standard Paddle', 'name' => 'C45 Dynasty', 'brand' => 'Franklin', 'hourly_rate' => 50, 'stock_quantity' => 20, 'description' => '16mm carbon fiber paddle with a forgiving sweet spot. A solid all-around pick.', 'image' => 'images/paddles/franklin.jpg'],
+            ['was' => 'Control Paddle', 'name' => 'SLK Halo Control', 'brand' => 'Selkirk', 'hourly_rate' => 100, 'stock_quantity' => 10, 'description' => 'Control-focused paddle for soft dinks, drops and resets.', 'image' => 'images/paddles/selkirk.jpg'],
+            ['was' => 'Power Paddle', 'name' => 'Magnus', 'brand' => 'JOOLA', 'hourly_rate' => 150, 'stock_quantity' => 6, 'description' => 'Carbon-face paddle with extra pop and spin for advanced players.', 'image' => 'images/paddles/joola.jpg'],
         ];
 
-        foreach ($paddles as $paddle) {
-            Paddle::updateOrCreate(['name' => $paddle['name']], $paddle + ['is_active' => true]);
+        foreach ($paddles as $data) {
+            $paddle = Paddle::where('name', $data['name'])->first()
+                ?? Paddle::where('name', $data['was'])->first()
+                ?? new Paddle;
+
+            // Replace the old generic sample photos; never touch a photo an admin uploaded.
+            if (! $paddle->image_path || str_starts_with($paddle->image_path, 'images/paddles/')) {
+                $paddle->image_path = $data['image'];
+            }
+
+            unset($data['was']);
+            $paddle->fill(collect($data)->except('image')->all() + ['is_active' => true])->save();
         }
     }
 }

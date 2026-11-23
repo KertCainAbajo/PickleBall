@@ -5,10 +5,14 @@ namespace App\Livewire\Admin;
 use App\Models\Paddle;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 #[Title('Manage Paddles')]
 class Paddles extends Component
 {
+    use WithFileUploads;
+
     public bool $showForm = false;
 
     public ?int $editingId = null;
@@ -25,6 +29,15 @@ class Paddles extends Component
 
     public bool $is_active = true;
 
+    /** New photo chosen in the form (not saved until "Save"). */
+    public ?TemporaryUploadedFile $photo = null;
+
+    /** URL of the paddle's current photo while editing. */
+    public ?string $currentPhotoUrl = null;
+
+    /** Remove the current photo on save. */
+    public bool $removePhoto = false;
+
     public ?string $notice = null;
 
     protected function rules(): array
@@ -36,7 +49,22 @@ class Paddles extends Component
             'hourly_rate' => ['required', 'numeric', 'min:0', 'max:99999999'],
             'stock_quantity' => ['required', 'integer', 'min:0', 'max:10000'],
             'is_active' => ['boolean'],
+            'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'], // 4 MB
         ];
+    }
+
+    protected function messages(): array
+    {
+        return [
+            'photo.image' => 'The photo must be an image (JPG, PNG or WebP).',
+            'photo.max' => 'The photo must be 4 MB or smaller.',
+        ];
+    }
+
+    public function updatedPhoto(): void
+    {
+        $this->validateOnly('photo');
+        $this->removePhoto = false;
     }
 
     public function create(): void
@@ -49,7 +77,7 @@ class Paddles extends Component
     {
         $paddle = Paddle::findOrFail($id);
 
-        $this->resetValidation();
+        $this->resetForm();
         $this->editingId = $paddle->id;
         $this->name = $paddle->name;
         $this->brand = (string) $paddle->brand;
@@ -57,22 +85,29 @@ class Paddles extends Component
         $this->hourly_rate = (string) $paddle->hourly_rate;
         $this->stock_quantity = (string) $paddle->stock_quantity;
         $this->is_active = $paddle->is_active;
+        $this->currentPhotoUrl = $paddle->image_url;
         $this->showForm = true;
     }
 
     public function save(): void
     {
         $data = $this->validate();
+        unset($data['photo']);
         $data['brand'] = $data['brand'] ?: null;
         $data['description'] = $data['description'] ?: null;
 
-        if ($this->editingId) {
-            Paddle::findOrFail($this->editingId)->update($data);
-            $this->notice = "{$data['name']} updated.";
-        } else {
-            Paddle::create($data);
-            $this->notice = "{$data['name']} added.";
+        $paddle = $this->editingId ? Paddle::findOrFail($this->editingId) : new Paddle;
+
+        if ($this->photo) {
+            $paddle->deleteUploadedImage();
+            $data['image_path'] = 'uploads/'.$this->photo->store(Paddle::UPLOAD_DIR, 'uploads');
+        } elseif ($this->removePhoto) {
+            $paddle->deleteUploadedImage();
+            $data['image_path'] = null;
         }
+
+        $paddle->fill($data)->save();
+        $this->notice = $this->editingId ? "{$paddle->name} updated." : "{$paddle->name} added.";
 
         $this->resetForm();
     }
@@ -95,13 +130,14 @@ class Paddles extends Component
             return;
         }
 
+        $paddle->deleteUploadedImage();
         $paddle->delete();
         $this->notice = "{$paddle->name} deleted.";
     }
 
     public function resetForm(): void
     {
-        $this->reset('showForm', 'editingId', 'name', 'brand', 'description', 'hourly_rate', 'stock_quantity', 'is_active');
+        $this->reset('showForm', 'editingId', 'name', 'brand', 'description', 'hourly_rate', 'stock_quantity', 'is_active', 'photo', 'currentPhotoUrl', 'removePhoto');
         $this->resetValidation();
     }
 

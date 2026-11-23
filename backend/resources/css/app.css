@@ -46,6 +46,23 @@
     /* Type scale (~1.25 ratio) */
     --text-display: 3.25rem;
     --text-display--line-height: 1.02;
+
+    /* Navy-tinted elevation, used only on things that sit "above" the court. */
+    --shadow-lift: 0 1px 0 rgb(16 28 44 / 0.04), 0 18px 40px -18px rgb(16 28 44 / 0.35);
+    --shadow-float: 0 30px 60px -20px rgb(0 0 0 / 0.55), 0 12px 24px -12px rgb(0 0 0 / 0.4);
+
+    --animate-ball-bounce: ball-bounce 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    --animate-ball-shadow: ball-shadow 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+
+    @keyframes ball-bounce {
+        0%, 100% { transform: translateY(0) scale(1.06, 0.94); }
+        12% { transform: translateY(-8%) scale(0.97, 1.03); }
+        50% { transform: translateY(-120%) scale(1, 1); }
+    }
+    @keyframes ball-shadow {
+        0%, 100% { transform: scale(1); opacity: 0.55; }
+        50% { transform: scale(0.45); opacity: 0.18; }
+    }
 }
 
 @layer base {
@@ -63,7 +80,7 @@
         *::before,
         *::after {
             transition-duration: 0.01ms !important;
-            animation-duration: 0.01ms !important;
+            animation: none !important;
         }
     }
 }
@@ -127,6 +144,37 @@
     background-position: center top;
 }
 
+/* The ball: lime sphere with the perforation holes of an outdoor pickleball. */
+@utility ball {
+    border-radius: 9999px;
+    background:
+        radial-gradient(circle at 50% 18%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 24% 34%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 76% 34%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 50% 50%, #6f8600 0 5.5%, transparent 6.5%),
+        radial-gradient(circle at 22% 64%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 78% 64%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 50% 82%, #6f8600 0 5%, transparent 6%),
+        radial-gradient(circle at 34% 28%, #f7ffb8 0 10%, transparent 34%),
+        radial-gradient(circle at 50% 50%, #d9fb2a 0 45%, #b5d800 75%, #7f9a00 100%);
+    box-shadow: inset -6px -8px 16px rgb(0 0 0 / 0.18);
+}
+
+/* Perforated-ball pattern for large accent surfaces. */
+@utility perforated {
+    background-image: radial-gradient(circle, rgb(16 28 44 / 0.14) 0 3px, transparent 3.5px);
+    background-size: 22px 22px;
+}
+
+/* Scoreboard digits. */
+@utility scoreboard-num {
+    font-family: var(--font-condensed);
+    font-weight: 700;
+    line-height: 0.9;
+    letter-spacing: -0.01em;
+    font-feature-settings: 'tnum' 1;
+}
+
 /* Taken time: diagonal shading like a closed-off court area. */
 @utility hatched {
     background-image: repeating-linear-gradient(
@@ -141,7 +189,7 @@
  * `.ticket-tear` is the perforated line with notches cut out of both sides.
  */
 @utility ticket {
-    @apply relative rounded-xl bg-white;
+    @apply relative rounded-xl bg-white shadow-lift;
 }
 @utility ticket-tear {
     position: relative;

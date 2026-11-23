@@ -1,13 +1,11 @@
-<div class="page">
+<div>
     @php($fmt = fn ($t, $f = 'g:i A') => \Carbon\Carbon::parse($t)->format($f))
     @php($hours = (float) $booking->hours)
 
-    <header class="mb-8 max-w-2xl">
-        <h1 class="page-title text-4xl">Rent paddles</h1>
-        <p class="mt-3 text-navy-700">
-            Your court is booked. Add paddles for the same time, {{ $fmt($booking->start_time) }} to {{ $fmt($booking->end_time) }} on {{ $booking->booking_date->format('l, F j') }}, or skip this step.
-        </p>
-    </header>
+    <x-page-header title="Rent paddles"
+        :subtitle="'Your court is booked. Add paddles for the same time, '.$fmt($booking->start_time).' to '.$fmt($booking->end_time).' on '.$booking->booking_date->format('l, F j').', or skip this step.'" />
+
+<div class="page">
 
     <div class="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section aria-labelledby="paddle-list" class="min-w-0">
@@ -23,7 +21,14 @@
                 @forelse ($this->paddles as $paddle)
                     @php($qty = $quantities[$paddle->id] ?? 0)
                     @php($soldOut = $paddle->available_quantity === 0)
-                    <li wire:key="paddle-{{ $paddle->id }}" class="flex flex-wrap items-center gap-x-6 gap-y-3 py-5">
+                    <li wire:key="paddle-{{ $paddle->id }}" class="flex flex-wrap items-center gap-x-5 gap-y-3 py-5">
+                        <div class="grid aspect-[4/3] w-24 shrink-0 place-items-center overflow-hidden rounded-lg bg-concrete ring-1 ring-rule sm:w-28">
+                            @if ($paddle->image_url)
+                                <img src="{{ $paddle->image_url }}" alt="" class="size-full object-cover" loading="lazy">
+                            @else
+                                <x-paddle-art class="h-14 w-auto -rotate-12" />
+                            @endif
+                        </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-lg font-semibold">{{ $paddle->name }}
                                 @if ($paddle->brand)<span class="font-normal text-navy-600">by {{ $paddle->brand }}</span>@endif
@@ -103,4 +108,5 @@
             </div>
         </aside>
     </div>
+</div>
 </div>

@@ -42,6 +42,36 @@
                     <input wire:model="is_active" type="checkbox" class="size-4 rounded accent-navy-700">
                     Available for rent
                 </label>
+
+                {{-- Photo --}}
+                <div class="sm:col-span-2">
+                    <span class="label">Photo</span>
+                    <div class="flex flex-wrap items-center gap-5">
+                        <div class="grid aspect-[4/3] w-40 place-items-center overflow-hidden rounded-lg bg-concrete ring-1 ring-rule">
+                            @if ($photo && ! $errors->has('photo'))
+                                <img src="{{ $photo->temporaryUrl() }}" alt="New photo preview" class="size-full object-cover">
+                            @elseif ($currentPhotoUrl && ! $removePhoto)
+                                <img src="{{ $currentPhotoUrl }}" alt="Current photo" class="size-full object-cover">
+                            @else
+                                <x-paddle-art class="h-20 w-auto opacity-60" />
+                            @endif
+                        </div>
+                        <div class="space-y-2">
+                            <label class="btn-secondary btn-sm cursor-pointer">
+                                {{ ($photo || ($currentPhotoUrl && ! $removePhoto)) ? 'Choose a different photo' : 'Upload a photo' }}
+                                <input wire:model="photo" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only">
+                            </label>
+                            <p wire:loading wire:target="photo" class="text-sm text-navy-600">Uploading</p>
+                            @if ($photo)
+                                <button type="button" wire:click="$set('photo', null)" class="block cursor-pointer text-sm font-semibold text-navy-700 hover:underline">Keep the old photo</button>
+                            @elseif ($currentPhotoUrl && ! $removePhoto)
+                                <button type="button" wire:click="$set('removePhoto', true)" class="block cursor-pointer text-sm font-semibold text-red-700 hover:underline">Remove photo</button>
+                            @endif
+                            <p class="text-sm text-navy-600">JPG, PNG or WebP, up to 4 MB. A landscape (4:3) shot looks best.</p>
+                            @error('photo') <p class="error">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <button type="button" wire:click="resetForm" class="btn-secondary">Cancel</button>
@@ -66,8 +96,19 @@
                 @forelse ($paddles as $paddle)
                     <tr wire:key="paddle-{{ $paddle->id }}">
                         <td class="px-4 py-3">
-                            <p class="font-semibold">{{ $paddle->name }}</p>
-                            <p class="text-xs text-navy-600">{{ $paddle->brand }}</p>
+                            <div class="flex items-center gap-3">
+                                <div class="grid h-10 w-14 shrink-0 place-items-center overflow-hidden rounded-md bg-concrete ring-1 ring-rule">
+                                    @if ($paddle->image_url)
+                                        <img src="{{ $paddle->image_url }}" alt="" class="size-full object-cover" loading="lazy">
+                                    @else
+                                        <x-paddle-art class="h-8 w-auto opacity-60" />
+                                    @endif
+                                </div>
+                                <div>
+                                    <p class="font-semibold">{{ $paddle->name }}</p>
+                                    <p class="text-xs text-navy-600">{{ $paddle->brand }}</p>
+                                </div>
+                            </div>
                         </td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">₱{{ number_format($paddle->hourly_rate, 2) }}/hr</td>
                         <td class="px-4 py-3 text-right">{{ $paddle->stock_quantity }}</td>

@@ -1,0 +1,4 @@
+{
+    // New terminals open in the Laravel app, so `php artisan serve` and `npm run dev` work right away.
+    "terminal.integrated.cwd": "${workspaceFolder}/backend"
+}

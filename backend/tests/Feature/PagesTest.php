@@ -16,6 +16,8 @@ use App\Models\Court;
 use App\Models\Paddle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -142,6 +144,33 @@ class PagesTest extends TestCase
             ->assertSee('wire:key="slot-21:00"', false);
     }
 
+    public function test_schedule_link_preselects_a_free_hour_but_not_a_taken_one(): void
+    {
+        $court = Court::factory()->create();
+        $tomorrow = now()->addDay()->toDateString();
+        Booking::factory()->create(['court_id' => $court->id, 'booking_date' => $tomorrow, 'start_time' => '10:00:00', 'end_time' => '11:00:00']);
+
+        Livewire::withQueryParams(['court' => $court->id, 'date' => $tomorrow, 'start' => '08:00'])
+            ->test(BookCourt::class)
+            ->assertSet('startTime', '08:00')
+            ->assertViewHas('total', 400.0);
+
+        Livewire::withQueryParams(['court' => $court->id, 'date' => $tomorrow, 'start' => '10:00'])
+            ->test(BookCourt::class)
+            ->assertSet('startTime', null);
+    }
+
+    public function test_home_schedule_links_free_hours_to_booking(): void
+    {
+        $this->travelTo(today()->setTime(9, 30));
+        $court = Court::factory()->create();
+
+        $this->get('/')
+            ->assertOk()
+            // escaped, because "&" between query params is written as &amp; in HTML
+            ->assertSee(route('book', ['court' => $court->id, 'date' => today()->toDateString(), 'start' => '10:00']));
+    }
+
     public function test_taken_slots_cannot_be_selected(): void
     {
         $court = Court::factory()->create();
@@ -182,6 +211,49 @@ class PagesTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('bookings.show', $booking))
             ->assertForbidden();
+    }
+
+    public function test_admin_can_upload_replace_and_remove_a_paddle_photo(): void
+    {
+        $disk = Storage::fake('uploads');
+        $this->actingAs(User::factory()->admin()->create());
+        $paddle = Paddle::factory()->create();
+
+        // Upload
+        Livewire::test(AdminPaddles::class)
+            ->call('edit', $paddle->id)
+            ->set('photo', UploadedFile::fake()->image('paddle.jpg', 800, 600))
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $first = $paddle->fresh()->image_path;
+        $this->assertStringStartsWith('uploads/paddles/', $first);
+        $disk->assertExists(substr($first, strlen('uploads/')));
+
+        // Replace: the old file is deleted
+        Livewire::test(AdminPaddles::class)
+            ->call('edit', $paddle->id)
+            ->set('photo', UploadedFile::fake()->image('new.jpg', 800, 600))
+            ->call('save');
+
+        $second = $paddle->fresh()->image_path;
+        $this->assertNotSame($first, $second);
+        $disk->assertMissing(substr($first, strlen('uploads/')));
+
+        // Remove
+        Livewire::test(AdminPaddles::class)
+            ->call('edit', $paddle->id)
+            ->set('removePhoto', true)
+            ->call('save');
+
+        $this->assertNull($paddle->fresh()->image_path);
+        $disk->assertMissing(substr($second, strlen('uploads/')));
+
+        // Non-images are rejected
+        Livewire::test(AdminPaddles::class)
+            ->call('edit', $paddle->id)
+            ->set('photo', UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf'))
+            ->assertHasErrors('photo');
     }
 
     public function test_admin_can_confirm_booking_and_manage_courts_and_paddles(): void
