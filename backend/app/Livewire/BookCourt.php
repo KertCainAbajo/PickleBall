@@ -6,6 +6,7 @@ use App\Models\Court;
 use App\Services\BookingService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -13,12 +14,6 @@ use Livewire\Component;
 #[Title('Book a Court')]
 class BookCourt extends Component
 {
-    /** How far ahead customers can book. */
-    public const DAYS_AHEAD = 30;
-
-    /** Longest single booking, in hours. */
-    public const MAX_HOURS = 4;
-
     #[Url(as: 'court')]
     public ?int $courtId = null;
 
@@ -92,25 +87,26 @@ class BookCourt extends Component
 
     public function book(BookingService $bookings)
     {
-        if (! auth()->check()) {
+        if (! Auth::check()) {
             session()->put('url.intended', route('book', ['court' => $this->courtId, 'date' => $this->date]));
             session()->flash('success', 'Log in or create an account to finish your booking.');
 
             return $this->redirectRoute('login', navigate: true);
         }
 
+        // Form-shape checks only; business rules (hours, window, overlap) are enforced by BookingService.
         $this->validate([
             'courtId' => ['required', 'integer'],
             'date' => ['required', 'date_format:Y-m-d'],
             'startTime' => ['required', 'date_format:H:i'],
-            'duration' => ['required', 'integer', 'min:1', 'max:'.self::MAX_HOURS],
+            'duration' => ['required', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
             'startTime.required' => 'Please choose a start time.',
         ]);
 
-        // Throws ValidationException (shown on the page) if the slot was taken in the meantime.
-        $booking = $bookings->create(auth()->user(), [
+        // Throws ValidationException (shown on the page) if a rule fails or the slot was taken meanwhile.
+        $booking = $bookings->create(Auth::user(), [
             'court_id' => $this->courtId,
             'booking_date' => $this->date,
             'start_time' => $this->startTime,
@@ -126,15 +122,17 @@ class BookCourt extends Component
     public function render()
     {
         // Derived values are computed fresh on every render so they always match the current selection.
-        $court = $this->court();
-        $slots = $this->slots();
+        $courts = $this->courts();
+        $court = $courts->firstWhere('id', $this->courtId);
+        $slots = $this->slots($court);
         $index = $this->startIndex($slots);
 
         return view('livewire.book-court', [
-            'courts' => $this->courts(),
+            'courts' => $courts,
             'court' => $court,
             'slots' => $slots,
-            'quickDates' => collect(range(0, 6))->map(fn ($i) => today()->addDays($i))->all(),
+            'quickDates' => collect(range(0, min(6, $this->maxDaysAhead())))->map(fn ($i) => today()->addDays($i))->all(),
+            'maxDate' => today()->addDays($this->maxDaysAhead())->toDateString(),
             'maxDuration' => $this->maxDuration($slots),
             'selectedStarts' => $index === null ? [] : array_column(array_slice($slots, $index, $this->duration), 'start_time'),
             'endTime' => $this->endTime(),
@@ -147,17 +145,27 @@ class BookCourt extends Component
         return Court::active()->orderBy('name')->get();
     }
 
-    private function court(): ?Court
+    /**
+     * @param  Court|null|false  $court  pass a loaded court to avoid re-querying; false = look it up
+     * @return array<int, array{start_time:string, end_time:string, available:bool}>
+     */
+    private function slots(Court|null|false $court = false): array
     {
-        return $this->courtId ? Court::active()->find($this->courtId) : null;
-    }
-
-    /** @return array<int, array{start_time:string, end_time:string, available:bool}> */
-    private function slots(): array
-    {
-        $court = $this->court();
+        if ($court === false) {
+            $court = $this->courtId ? Court::active()->find($this->courtId) : null;
+        }
 
         return $court ? app(BookingService::class)->courtSlots($court, $this->date) : [];
+    }
+
+    private function maxDaysAhead(): int
+    {
+        return (int) config('booking.max_days_ahead');
+    }
+
+    private function maxHours(): int
+    {
+        return (int) config('booking.max_hours');
     }
 
     /** How many hours can be booked from the selected start before a taken slot, closing, or the max. */
@@ -171,7 +179,7 @@ class BookCourt extends Component
 
         $count = 0;
         foreach (array_slice($slots, $index) as $slot) {
-            if (! $slot['available'] || $count >= self::MAX_HOURS) {
+            if (! $slot['available'] || $count >= $this->maxHours()) {
                 break;
             }
             $count++;
@@ -213,6 +221,6 @@ class BookCourt extends Component
 
         $parsed = Carbon::parse($date);
 
-        return $parsed->gte(today()) && $parsed->lte(today()->addDays(self::DAYS_AHEAD));
+        return $parsed->gte(today()) && $parsed->lte(today()->addDays($this->maxDaysAhead()));
     }
 }

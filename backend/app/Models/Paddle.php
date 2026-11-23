@@ -2,14 +2,25 @@
 
 namespace App\Models;
 
-use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string|null $brand
+ * @property string|null $description
+ * @property string $hourly_rate
+ * @property int $stock_quantity
+ * @property bool $is_active
+ * @property int $available_quantity only set by BookingService::paddleAvailability()
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, BookingPaddle> $rentals
+ */
 #[Fillable(['name', 'brand', 'description', 'hourly_rate', 'stock_quantity', 'is_active'])]
 class Paddle extends Model
 {
@@ -24,13 +35,6 @@ class Paddle extends Model
         ];
     }
 
-    public function bookings(): BelongsToMany
-    {
-        return $this->belongsToMany(Booking::class)
-            ->withPivot(['id', 'quantity', 'unit_price', 'subtotal'])
-            ->withTimestamps();
-    }
-
     public function rentals(): HasMany
     {
         return $this->hasMany(BookingPaddle::class);
@@ -42,24 +46,27 @@ class Paddle extends Model
     }
 
     /**
-     * Units of this paddle already rented by active bookings that overlap the given slot.
+     * Units already rented per paddle by active bookings overlapping a slot — one query for all paddles.
+     *
+     * @param  array<int>|null  $paddleIds  limit to these paddles (null = all)
+     * @return Collection<int, int> paddle_id => units rented
      */
-    public function rentedQuantityDuring(string $date, string $start, string $end, ?int $ignoreBookingId = null): int
+    public static function rentedQuantities(Carbon|string $date, string $start, string $end, ?array $paddleIds = null): Collection
     {
-        return (int) BookingPaddle::query()
-            ->where('paddle_id', $this->id)
-            ->whereHas('booking', function (Builder $q) use ($date, $start, $end, $ignoreBookingId) {
-                $q->whereDate('booking_date', $date)
-                    ->whereIn('status', BookingStatus::active())
-                    ->where('start_time', '<', $end)
-                    ->where('end_time', '>', $start)
-                    ->when($ignoreBookingId, fn (Builder $q) => $q->whereKeyNot($ignoreBookingId));
-            })
-            ->sum('quantity');
+        return BookingPaddle::query()
+            ->whereIn('booking_id', Booking::query()->select('id')->overlappingTime($date, $start, $end))
+            ->when($paddleIds !== null, fn (Builder $q) => $q->whereIn('paddle_id', $paddleIds))
+            ->groupBy('paddle_id')
+            ->selectRaw('paddle_id, SUM(quantity) as rented')
+            ->pluck('rented', 'paddle_id')
+            ->map(fn ($rented) => (int) $rented);
     }
 
-    public function availableQuantityDuring(string $date, string $start, string $end, ?int $ignoreBookingId = null): int
+    /** Units of this paddle still free for the given slot. */
+    public function availableQuantityDuring(Carbon|string $date, string $start, string $end): int
     {
-        return max(0, $this->stock_quantity - $this->rentedQuantityDuring($date, $start, $end, $ignoreBookingId));
+        $rented = static::rentedQuantities($date, $start, $end, [$this->id])->get($this->id, 0);
+
+        return max(0, $this->stock_quantity - $rented);
     }
 }

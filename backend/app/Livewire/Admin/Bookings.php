@@ -30,7 +30,7 @@ class Bookings extends Component
 
     public ?string $notice = null;
 
-    public function updating($property): void
+    public function updating(string $property): void
     {
         if (in_array($property, ['status', 'date', 'court', 'search'], true)) {
             $this->resetPage();
@@ -56,7 +56,7 @@ class Bookings extends Component
         $bookings = Booking::query()
             ->with(['court', 'user', 'rentals.paddle'])
             ->when(BookingStatus::tryFrom($this->status), fn ($q, $s) => $q->where('status', $s->value))
-            ->when(preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->date), fn ($q) => $q->whereDate('booking_date', $this->date))
+            ->when(preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->date), fn ($q) => $q->onDate($this->date))
             ->when(ctype_digit($this->court), fn ($q) => $q->where('court_id', (int) $this->court))
             ->when(trim($this->search) !== '', function ($q) {
                 $term = '%'.trim($this->search).'%';

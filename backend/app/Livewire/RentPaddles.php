@@ -36,17 +36,11 @@ class RentPaddles extends Component
         $this->quantities = $this->paddles->mapWithKeys(fn ($p) => [$p->id => 0])->all();
     }
 
-    /** Active paddles with how many more units are free for this booking's time slot. */
+    /** Active paddles with how many more units are free for this booking's time slot (2 queries). */
     #[Computed]
     public function paddles(): Collection
     {
-        $date = $this->booking->booking_date->toDateString();
-        $start = BookingService::normalizeTime($this->booking->start_time);
-        $end = BookingService::normalizeTime($this->booking->end_time);
-
-        return Paddle::active()->orderBy('hourly_rate')->get()->each(
-            fn (Paddle $paddle) => $paddle->setAttribute('available_quantity', $paddle->availableQuantityDuring($date, $start, $end)),
-        );
+        return app(BookingService::class)->paddleAvailabilityFor($this->booking);
     }
 
     #[Computed]

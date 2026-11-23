@@ -4,10 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property string|null $description
+ * @property string|null $surface_type
+ * @property string $hourly_rate
+ * @property string $opening_time "HH:MM:SS"
+ * @property string $closing_time "HH:MM:SS"
+ * @property bool $is_active
+ * @property-read Collection<int, Booking> $bookings
+ */
 #[Fillable(['name', 'description', 'surface_type', 'hourly_rate', 'opening_time', 'closing_time', 'is_active'])]
 class Court extends Model
 {

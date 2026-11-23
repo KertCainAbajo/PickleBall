@@ -11,13 +11,8 @@
 <body class="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased">
     <header class="bg-court-900 text-white">
         <nav class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6" x-data="{ open: false }">
-            <a href="{{ route('home') }}" wire:navigate class="flex items-center gap-2 text-lg font-bold tracking-tight">
-                <span class="grid size-8 place-items-center rounded-full bg-ball text-court-900">
-                    <svg viewBox="0 0 24 24" class="size-5" fill="currentColor" aria-hidden="true">
-                        <circle cx="8" cy="8" r="1.4"/><circle cx="16" cy="8" r="1.4"/><circle cx="12" cy="12" r="1.4"/>
-                        <circle cx="8" cy="16" r="1.4"/><circle cx="16" cy="16" r="1.4"/>
-                    </svg>
-                </span>
+            <a href="{{ route('home') }}" wire:navigate class="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+                <img src="{{ asset('images/logo-sm.png') }}" alt="" class="h-11 w-auto" width="105" height="112">
                 PickleBall
             </a>
 

@@ -8,6 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * A paddle rental line attached to a booking.
+ *
+ * @property int $id
+ * @property int $booking_id
+ * @property int $paddle_id
+ * @property int $quantity
+ * @property string $unit_price hourly rate at the time of rental
+ * @property string $subtotal
+ * @property-read Booking $booking
+ * @property-read Paddle $paddle
  */
 #[Fillable(['booking_id', 'paddle_id', 'quantity', 'unit_price', 'subtotal'])]
 class BookingPaddle extends Model

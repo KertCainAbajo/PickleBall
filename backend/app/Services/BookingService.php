@@ -9,39 +9,54 @@ use App\Models\Court;
 use App\Models\Paddle;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * All booking rules live here so controllers stay thin:
- * court overlap checks, operating hours, paddle stock, and price calculation.
+ * All booking rules live here so every screen behaves the same:
+ * court overlap, operating hours, booking window, duration, paddle stock and pricing.
  *
- * Every write runs in a transaction and locks the court / paddle rows it depends on,
- * so two people cannot grab the same slot or the last paddle at the same moment.
+ * Writes run in a transaction and lock the rows they depend on (court, booking, paddles),
+ * so two people cannot take the same slot or the last paddle at the same moment.
+ * Lock order is always court/booking first, then paddles, to avoid deadlocks.
  */
 class BookingService
 {
+    /** Length of one bookable slot on the availability grid, in minutes. */
+    public const SLOT_MINUTES = 60;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer actions
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Book a court, optionally renting paddles in the same request.
+     * Book a court, optionally renting paddles in the same step.
      *
      * @param  array{court_id:int, booking_date:string, start_time:string, end_time:string, notes?:string|null, paddles?:array<int, array{paddle_id:int, quantity:int}>}  $data
      */
     public function create(User $user, array $data): Booking
     {
-        return DB::transaction(function () use ($user, $data) {
-            /** @var Court $court */
-            $court = Court::whereKey($data['court_id'])->lockForUpdate()->firstOrFail();
+        $date = Carbon::parse($data['booking_date'])->toDateString();
+        $start = self::normalizeTime($data['start_time']);
+        $end = self::normalizeTime($data['end_time']);
+        $paddleItems = $this->normalizePaddleItems($data['paddles'] ?? []);
 
-            if (! $court->is_active) {
+        // Checks that don't need the database run before opening a transaction.
+        $this->assertValidTimeRange($start, $end);
+        $this->assertWithinBookingWindow($date, $start);
+
+        return DB::transaction(function () use ($user, $data, $date, $start, $end, $paddleItems) {
+            /** @var Court|null $court */
+            $court = Court::whereKey($data['court_id'])->lockForUpdate()->first();
+
+            if (! $court || ! $court->is_active) {
                 throw ValidationException::withMessages(['court_id' => 'This court is not available for booking.']);
             }
 
-            $date = Carbon::parse($data['booking_date'])->toDateString();
-            $start = self::normalizeTime($data['start_time']);
-            $end = self::normalizeTime($data['end_time']);
-
             $this->assertWithinOperatingHours($court, $start, $end);
-            $this->assertNotInPast($date, $start);
 
             if (Booking::overlapping($court->id, $date, $start, $end)->exists()) {
                 throw ValidationException::withMessages(['start_time' => 'This court is already booked for the selected time.']);
@@ -64,11 +79,11 @@ class BookingService
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            if (! empty($data['paddles'])) {
-                $this->rentPaddles($booking, $data['paddles']);
+            if ($paddleItems->isNotEmpty()) {
+                $this->rentPaddles($booking, $paddleItems);
             }
 
-            return $booking->fresh(['court', 'rentals.paddle']);
+            return $booking->load(['court', 'rentals.paddle']);
         });
     }
 
@@ -80,138 +95,182 @@ class BookingService
      */
     public function addPaddles(Booking $booking, array $items): Booking
     {
-        return DB::transaction(function () use ($booking, $items) {
-            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
-            $this->assertModifiable($booking);
+        $paddleItems = $this->normalizePaddleItems($items);
 
-            $this->rentPaddles($booking, $items);
+        if ($paddleItems->isEmpty()) {
+            throw ValidationException::withMessages(['paddles' => 'Choose at least one paddle.']);
+        }
 
-            return $booking->fresh(['court', 'rentals.paddle']);
+        return DB::transaction(function () use ($booking, $paddleItems) {
+            $booking = $this->lockModifiable($booking);
+
+            $this->rentPaddles($booking, $paddleItems);
+
+            return $booking->load(['court', 'rentals.paddle']);
         });
     }
 
-    /**
-     * Remove a paddle rental line from a booking.
-     */
+    /** Remove a paddle rental line from a booking. */
     public function removePaddle(Booking $booking, Paddle $paddle): Booking
     {
         return DB::transaction(function () use ($booking, $paddle) {
-            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
-            $this->assertModifiable($booking);
+            $booking = $this->lockModifiable($booking);
 
-            $deleted = BookingPaddle::where('booking_id', $booking->id)
-                ->where('paddle_id', $paddle->id)
-                ->delete();
-
-            if (! $deleted) {
+            if (! $booking->rentals()->where('paddle_id', $paddle->id)->delete()) {
                 throw ValidationException::withMessages(['paddle' => 'This paddle is not rented on this booking.']);
             }
 
             $booking->recalculateTotals();
 
-            return $booking->fresh(['court', 'rentals.paddle']);
+            return $booking->load(['court', 'rentals.paddle']);
         });
     }
 
-    /**
-     * Cancel a booking. This frees the court slot and the rented paddles.
-     */
+    /** Cancel a booking. This frees the court slot and the rented paddles. */
     public function cancel(Booking $booking): Booking
     {
         return DB::transaction(function () use ($booking) {
-            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
-            $this->assertModifiable($booking);
+            $booking = $this->lockModifiable($booking);
 
             $booking->update([
                 'status' => BookingStatus::Cancelled,
                 'cancelled_at' => now(),
             ]);
 
-            return $booking->fresh(['court', 'rentals.paddle']);
+            return $booking->load(['court', 'rentals.paddle']);
         });
     }
 
-    /**
-     * Admin status change, limited to valid transitions.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Admin actions
+    |--------------------------------------------------------------------------
+    */
+
+    /** Change a booking's status, limited to valid transitions. */
     public function changeStatus(Booking $booking, BookingStatus $status): Booking
     {
-        $allowed = match ($booking->status) {
-            BookingStatus::Pending => [BookingStatus::Confirmed, BookingStatus::Cancelled],
-            BookingStatus::Confirmed => [BookingStatus::Completed, BookingStatus::Cancelled],
-            default => [],
-        };
+        return DB::transaction(function () use ($booking, $status) {
+            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
 
-        if (! in_array($status, $allowed, true)) {
-            throw ValidationException::withMessages([
-                'status' => "A {$booking->status->value} booking cannot be changed to {$status->value}.",
+            $allowed = match ($booking->status) {
+                BookingStatus::Pending => [BookingStatus::Confirmed, BookingStatus::Cancelled],
+                BookingStatus::Confirmed => [BookingStatus::Completed, BookingStatus::Cancelled],
+                default => [],
+            };
+
+            if (! in_array($status, $allowed, true)) {
+                throw ValidationException::withMessages([
+                    'status' => "A {$booking->status->value} booking cannot be changed to {$status->value}.",
+                ]);
+            }
+
+            $booking->update([
+                'status' => $status,
+                'cancelled_at' => $status === BookingStatus::Cancelled ? now() : $booking->cancelled_at,
             ]);
-        }
 
-        $booking->update([
-            'status' => $status,
-            'cancelled_at' => $status === BookingStatus::Cancelled ? now() : $booking->cancelled_at,
-        ]);
-
-        return $booking->fresh(['court', 'user', 'rentals.paddle']);
+            return $booking->load(['court', 'user', 'rentals.paddle']);
+        });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Availability (read-only)
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Hourly slots for a court on a date, each marked available or not.
+     * Slots for a court on a date, each marked available or not. One query.
      *
      * @return array<int, array{start_time:string, end_time:string, available:bool}>
      */
-    public function courtSlots(Court $court, string $date): array
+    public function courtSlots(Court $court, Carbon|string $date): array
     {
-        $bookings = Booking::where('court_id', $court->id)
-            ->whereDate('booking_date', $date)
-            ->whereIn('status', BookingStatus::active())
-            ->get(['start_time', 'end_time']);
+        $date = Carbon::parse($date)->toDateString();
+
+        $taken = Booking::where('court_id', $court->id)
+            ->onDate($date)
+            ->active()
+            ->get(['start_time', 'end_time'])
+            ->map(fn (Booking $b) => [self::normalizeTime($b->start_time), self::normalizeTime($b->end_time)]);
 
         $slots = [];
         $cursor = Carbon::parse("$date {$court->opening_time}");
         $closing = Carbon::parse("$date {$court->closing_time}");
+        $now = now();
 
-        while ($cursor->copy()->addHour()->lte($closing)) {
+        while ($cursor->copy()->addMinutes(self::SLOT_MINUTES)->lte($closing)) {
+            $next = $cursor->copy()->addMinutes(self::SLOT_MINUTES);
             $start = $cursor->format('H:i:s');
-            $end = $cursor->copy()->addHour()->format('H:i:s');
+            $end = $next->format('H:i:s');
 
-            $taken = $bookings->contains(fn ($b) => self::normalizeTime($b->start_time) < $end && self::normalizeTime($b->end_time) > $start);
+            $isTaken = $taken->contains(fn (array $range) => $range[0] < $end && $range[1] > $start);
 
             $slots[] = [
                 'start_time' => substr($start, 0, 5),
                 'end_time' => substr($end, 0, 5),
-                'available' => ! $taken && ! $cursor->isPast(),
+                'available' => ! $isTaken && $cursor->gt($now),
             ];
 
-            $cursor->addHour();
+            $cursor = $next;
         }
 
         return $slots;
     }
 
     /**
-     * Lock the paddles, check stock for the booking's time slot, and save rental lines.
+     * Active paddles, each with an `available_quantity` attribute for the given slot. Two queries total.
      *
-     * @param  array<int, array{paddle_id:int, quantity:int}>  $items
+     * @return Collection<int, Paddle>
      */
-    protected function rentPaddles(Booking $booking, array $items): void
+    public function paddleAvailability(Carbon|string $date, string $start, string $end): Collection
     {
-        // Merge duplicate paddle_ids in the request.
-        $requested = collect($items)
-            ->groupBy('paddle_id')
-            ->map(fn ($group) => (int) $group->sum('quantity'));
+        $start = self::normalizeTime($start);
+        $end = self::normalizeTime($end);
+        $rented = Paddle::rentedQuantities($date, $start, $end);
 
-        $paddles = Paddle::whereIn('id', $requested->keys())
-            ->lockForUpdate()
-            ->get()
-            ->keyBy('id');
+        return Paddle::active()->orderBy('hourly_rate')->get()->each(
+            fn (Paddle $paddle) => $paddle->setAttribute(
+                'available_quantity',
+                max(0, $paddle->stock_quantity - $rented->get($paddle->id, 0)),
+            ),
+        );
+    }
 
-        $date = $booking->booking_date->toDateString();
-        $start = self::normalizeTime($booking->start_time);
-        $end = self::normalizeTime($booking->end_time);
+    /** Same as paddleAvailability(), for an existing booking's time slot. */
+    public function paddleAvailabilityFor(Booking $booking): Collection
+    {
+        return $this->paddleAvailability($booking->booking_date, $booking->start_time, $booking->end_time);
+    }
 
-        foreach ($requested as $paddleId => $quantity) {
+    /*
+    |--------------------------------------------------------------------------
+    | Internals
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Lock the paddles, check stock for the booking's slot, and save rental lines.
+     *
+     * @param  Collection<int, int>  $items  paddle_id => quantity to add
+     */
+    protected function rentPaddles(Booking $booking, Collection $items): void
+    {
+        $paddles = Paddle::whereIn('id', $items->keys())->lockForUpdate()->get()->keyBy('id');
+
+        // One query for current usage of all requested paddles (includes this booking's own lines).
+        $rented = Paddle::rentedQuantities(
+            $booking->booking_date,
+            self::normalizeTime($booking->start_time),
+            self::normalizeTime($booking->end_time),
+            $items->keys()->all(),
+        );
+
+        $existingLines = $booking->rentals()->whereIn('paddle_id', $items->keys())->get()->keyBy('paddle_id');
+        $maxPerType = (int) config('booking.max_paddles_per_type');
+
+        foreach ($items as $paddleId => $quantity) {
             /** @var Paddle|null $paddle */
             $paddle = $paddles->get($paddleId);
 
@@ -219,37 +278,111 @@ class BookingService
                 throw ValidationException::withMessages(['paddles' => "Paddle #{$paddleId} is not available for rent."]);
             }
 
-            // Includes units already on this booking, so adding more only uses free stock.
-            $available = $paddle->availableQuantityDuring($date, $start, $end);
+            $available = max(0, $paddle->stock_quantity - $rented->get($paddleId, 0));
 
             if ($quantity > $available) {
                 throw ValidationException::withMessages([
-                    'paddles' => "Only {$available} unit(s) of {$paddle->name} are available for this time slot.",
+                    'paddles' => "Only {$available} {$paddle->name} paddle(s) are available for this time slot.",
                 ]);
             }
 
-            $line = BookingPaddle::firstOrNew([
-                'booking_id' => $booking->id,
-                'paddle_id' => $paddle->id,
-            ]);
+            /** @var BookingPaddle $line */
+            $line = $existingLines->get($paddleId) ?? new BookingPaddle(['booking_id' => $booking->id, 'paddle_id' => $paddleId]);
+            $newQuantity = ($line->quantity ?? 0) + $quantity;
+
+            if ($newQuantity > $maxPerType) {
+                throw ValidationException::withMessages([
+                    'paddles' => "You can rent at most {$maxPerType} {$paddle->name} paddles per booking.",
+                ]);
+            }
 
             // Keep the original price if this paddle was already rented on the booking.
             $unitPrice = $line->exists ? (float) $line->unit_price : (float) $paddle->hourly_rate;
 
-            $line->quantity = ($line->quantity ?? 0) + $quantity;
-            $line->unit_price = $unitPrice;
-            $line->subtotal = round($unitPrice * (float) $booking->hours * $line->quantity, 2);
-            $line->save();
+            $line->fill([
+                'quantity' => $newQuantity,
+                'unit_price' => $unitPrice,
+                'subtotal' => round($unitPrice * (float) $booking->hours * $newQuantity, 2),
+            ])->save();
         }
 
         $booking->recalculateTotals();
     }
 
-    protected function assertModifiable(Booking $booking): void
+    /**
+     * Merge duplicate paddle_ids and validate quantities.
+     *
+     * @param  array<int, array{paddle_id:mixed, quantity:mixed}>  $items
+     * @return Collection<int, int> paddle_id => quantity
+     */
+    protected function normalizePaddleItems(array $items): Collection
     {
+        $maxPerType = (int) config('booking.max_paddles_per_type');
+
+        return collect($items)
+            ->each(function ($item) use ($maxPerType) {
+                $id = $item['paddle_id'] ?? null;
+                $qty = $item['quantity'] ?? null;
+
+                if (! is_numeric($id) || ! is_numeric($qty) || (int) $qty != $qty || $qty < 1 || $qty > $maxPerType) {
+                    throw ValidationException::withMessages([
+                        'paddles' => "Each paddle needs a quantity between 1 and {$maxPerType}.",
+                    ]);
+                }
+            })
+            ->groupBy(fn ($item) => (int) $item['paddle_id'])
+            ->map(fn (Collection $group) => (int) $group->sum('quantity'));
+    }
+
+    /** Re-read the booking with a row lock and make sure it can still be changed. */
+    protected function lockModifiable(Booking $booking): Booking
+    {
+        $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+
         if (! $booking->isModifiable()) {
+            throw ValidationException::withMessages(['booking' => 'This booking can no longer be changed.']);
+        }
+
+        return $booking;
+    }
+
+    protected function assertValidTimeRange(string $start, string $end): void
+    {
+        $allowedMinutes = config('booking.allowed_minutes');
+
+        foreach (['start_time' => $start, 'end_time' => $end] as $field => $time) {
+            if (! in_array((int) substr($time, 3, 2), $allowedMinutes, true) || substr($time, 6, 2) !== '00') {
+                $marks = collect($allowedMinutes)->map(fn ($m) => sprintf(':%02d', $m))->join(' or ');
+                throw ValidationException::withMessages([$field => "Times must be on {$marks} (e.g. 08:00)."]);
+            }
+        }
+
+        if ($end <= $start) {
+            throw ValidationException::withMessages(['end_time' => 'End time must be after the start time.']);
+        }
+
+        $hours = self::hoursBetween($start, $end);
+        $min = config('booking.min_hours');
+        $max = config('booking.max_hours');
+
+        if ($hours < $min || $hours > $max) {
             throw ValidationException::withMessages([
-                'booking' => 'This booking can no longer be changed.',
+                'end_time' => "A booking must be between {$min} and {$max} hours long.",
+            ]);
+        }
+    }
+
+    protected function assertWithinBookingWindow(string $date, string $start): void
+    {
+        if (Carbon::parse("$date $start")->lte(now())) {
+            throw ValidationException::withMessages(['start_time' => 'You cannot book a time that has already passed.']);
+        }
+
+        $maxDays = (int) config('booking.max_days_ahead');
+
+        if (Carbon::parse($date)->gt(today()->addDays($maxDays))) {
+            throw ValidationException::withMessages([
+                'booking_date' => "Bookings can be made up to {$maxDays} days ahead.",
             ]);
         }
     }
@@ -261,20 +394,8 @@ class BookingService
 
         if ($start < $opening || $end > $closing) {
             throw ValidationException::withMessages([
-                'start_time' => sprintf(
-                    '%s is open from %s to %s.',
-                    $court->name,
-                    substr($opening, 0, 5),
-                    substr($closing, 0, 5),
-                ),
+                'start_time' => sprintf('%s is open from %s to %s.', $court->name, substr($opening, 0, 5), substr($closing, 0, 5)),
             ]);
-        }
-    }
-
-    protected function assertNotInPast(string $date, string $start): void
-    {
-        if (Carbon::parse("$date $start")->isPast()) {
-            throw ValidationException::withMessages(['start_time' => 'You cannot book a time that has already passed.']);
         }
     }
 

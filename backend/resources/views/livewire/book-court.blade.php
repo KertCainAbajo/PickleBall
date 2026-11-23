@@ -52,7 +52,7 @@
                         <label class="ml-1 text-sm text-zinc-500">
                             <span class="sr-only">Other date</span>
                             <input type="date" wire:model.live="date" class="input w-auto"
-                                   min="{{ today()->toDateString() }}" max="{{ today()->addDays(\App\Livewire\BookCourt::DAYS_AHEAD)->toDateString() }}">
+                                   min="{{ today()->toDateString() }}" max="{{ $maxDate }}">
                         </label>
                     </div>
                 </section>

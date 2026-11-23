@@ -9,6 +9,7 @@ use App\Models\Paddle;
 use App\Models\User;
 use App\Services\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -105,6 +106,87 @@ class BookingServiceTest extends TestCase
     public function test_booking_in_the_past_is_rejected(): void
     {
         $this->assertRejected('start_time', fn () => $this->book(['booking_date' => now()->subDay()->toDateString()]));
+    }
+
+    public function test_booking_length_limits_come_from_config(): void
+    {
+        config(['booking.max_hours' => 2]);
+
+        $this->assertRejected('end_time', fn () => $this->book(['start_time' => '08:00', 'end_time' => '11:00']));
+        $this->assertRejected('end_time', fn () => $this->book(['start_time' => '08:00', 'end_time' => '08:30']));
+        $this->assertRejected('end_time', fn () => $this->book(['start_time' => '10:00', 'end_time' => '09:00']));
+
+        $this->book(['start_time' => '08:00', 'end_time' => '10:00']);
+        $this->assertDatabaseCount('bookings', 1);
+    }
+
+    public function test_times_must_be_on_allowed_minute_marks(): void
+    {
+        $this->assertRejected('start_time', fn () => $this->book(['start_time' => '08:15', 'end_time' => '09:15']));
+
+        $this->book(['start_time' => '08:30', 'end_time' => '09:30']);
+        $this->assertDatabaseCount('bookings', 1);
+    }
+
+    public function test_cannot_book_beyond_the_booking_window(): void
+    {
+        config(['booking.max_days_ahead' => 7]);
+
+        $this->assertRejected('booking_date', fn () => $this->book(['booking_date' => now()->addDays(8)->toDateString()]));
+
+        $this->book(['booking_date' => now()->addDays(7)->toDateString()]);
+        $this->assertDatabaseCount('bookings', 1);
+    }
+
+    public function test_booking_date_is_always_stored_as_a_plain_date(): void
+    {
+        // A Carbon value with a time part must still be stored as Y-m-d, or same-day overlap checks would miss it.
+        $booking = Booking::factory()->create(['court_id' => $this->court->id, 'booking_date' => now()->addDay()]);
+
+        $this->assertSame($this->tomorrow, $booking->getRawOriginal('booking_date'));
+        $this->assertRejected('start_time', fn () => $this->book()); // overlaps 08:00–10:00 from the factory
+    }
+
+    public function test_paddle_quantity_limits(): void
+    {
+        config(['booking.max_paddles_per_type' => 3]);
+        $paddle = Paddle::factory()->create(['stock_quantity' => 10]);
+        $booking = $this->book();
+
+        $this->assertRejected('paddles', fn () => $this->service->addPaddles($booking, [['paddle_id' => $paddle->id, 'quantity' => 0]]));
+        $this->assertRejected('paddles', fn () => $this->service->addPaddles($booking, [['paddle_id' => $paddle->id, 'quantity' => 4]]));
+
+        $this->service->addPaddles($booking, [['paddle_id' => $paddle->id, 'quantity' => 2]]);
+        // 2 already + 2 more would exceed the per-booking limit of 3.
+        $this->assertRejected('paddles', fn () => $this->service->addPaddles($booking, [['paddle_id' => $paddle->id, 'quantity' => 2]]));
+    }
+
+    public function test_paddle_availability_uses_a_fixed_number_of_queries(): void
+    {
+        $paddles = Paddle::factory()->count(5)->create(['stock_quantity' => 4]);
+        $this->book(['paddles' => [['paddle_id' => $paddles[0]->id, 'quantity' => 3]]]);
+
+        DB::enableQueryLog();
+        $result = $this->service->paddleAvailability($this->tomorrow, '09:00', '10:00')->keyBy('id');
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame(2, $queries);
+        $this->assertSame(1, $result[$paddles[0]->id]->available_quantity);
+        $this->assertSame(4, $result[$paddles[1]->id]->available_quantity);
+    }
+
+    public function test_upcoming_and_past_scopes(): void
+    {
+        $this->travelTo(today()->setTime(12, 0));
+
+        $endedToday = Booking::factory()->for($this->user)->create(['court_id' => $this->court->id, 'booking_date' => today(), 'start_time' => '08:00:00', 'end_time' => '09:00:00']);
+        $laterToday = Booking::factory()->for($this->user)->create(['court_id' => $this->court->id, 'booking_date' => today(), 'start_time' => '15:00:00', 'end_time' => '16:00:00']);
+        $tomorrow = Booking::factory()->for($this->user)->create(['court_id' => $this->court->id, 'booking_date' => today()->addDay()]);
+        Booking::factory()->for($this->user)->status(BookingStatus::Cancelled)->create(['court_id' => $this->court->id, 'booking_date' => today()->addDay(), 'start_time' => '18:00:00', 'end_time' => '19:00:00']);
+
+        $this->assertEqualsCanonicalizing([$laterToday->id, $tomorrow->id], Booking::upcoming()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing([$endedToday->id], Booking::past()->pluck('id')->all());
     }
 
     public function test_inactive_court_cannot_be_booked(): void

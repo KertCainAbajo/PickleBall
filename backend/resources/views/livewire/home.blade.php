@@ -1,8 +1,8 @@
 <div class="space-y-12">
     {{-- Hero --}}
-    <section class="relative overflow-hidden rounded-3xl bg-court-800 px-6 py-14 text-white sm:px-12">
-        <div class="pointer-events-none absolute -top-16 -right-16 size-64 rounded-full bg-ball/20 blur-2xl"></div>
-        <div class="relative max-w-xl">
+    <section class="relative flex items-center gap-8 overflow-hidden rounded-3xl bg-court-800 px-6 py-14 text-white sm:px-12">
+        <div class="pointer-events-none absolute top-1/2 right-10 size-96 -translate-y-1/2 rounded-full bg-ball/15 blur-3xl"></div>
+        <div class="relative max-w-xl flex-1">
             <p class="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-ball uppercase">Open daily · 6 AM – 10 PM</p>
             <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">Book your court. Grab a paddle. Play.</h1>
             <p class="mt-4 text-lg text-white/80">Reserve a pickleball court in seconds and rent paddles right after booking — no need to bring your own.</p>
@@ -13,6 +13,8 @@
                 @endguest
             </div>
         </div>
+        <img src="{{ asset('images/logo-md.png') }}" alt="Pickleball Club logo"
+             class="relative ml-auto hidden w-64 drop-shadow-2xl md:block lg:w-80" width="450" height="480">
     </section>
 
     {{-- How it works --}}
