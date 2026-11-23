@@ -1,93 +1,101 @@
-<div class="mx-auto max-w-3xl">
-    <a href="{{ route('bookings.index') }}" wire:navigate class="text-sm font-medium text-court-700 hover:underline">← My bookings</a>
+<div class="page">
+<div class="mx-auto max-w-2xl">
+    @php($fmt = fn ($t, $f = 'g:i A') => \Carbon\Carbon::parse($t)->format($f))
+    @php($hoursLabel = rtrim(rtrim($booking->hours, '0'), '.'))
 
-    {{-- Messages from actions on this page (remove paddle / cancel) --}}
+    <a href="{{ route('bookings.index') }}" wire:navigate class="font-medium text-navy-700 hover:text-navy-900 hover:underline">Back to my bookings</a>
+
     @if ($notice)
-        <div class="mt-4 rounded-xl border border-court-200 bg-court-50 px-4 py-3 text-sm font-medium text-court-800" role="status">{{ $notice }}</div>
+        <p class="mt-4 rounded-sm border-l-4 border-ball-dark bg-white px-4 py-3 font-medium" role="status">{{ $notice }}</p>
     @endif
 
-    <div class="card mt-4 overflow-hidden">
-        <div class="flex flex-wrap items-start justify-between gap-4 bg-court-800 px-6 py-5 text-white">
-            <div>
-                <p class="text-sm text-white/70">Reference</p>
-                <p class="text-xl font-bold tracking-wide">{{ $booking->reference }}</p>
+    <article class="ticket mt-4" aria-labelledby="booking-title">
+        {{-- Stub header: the court you're playing on --}}
+        <div class="rounded-t-xl bg-navy-900 px-6 pt-5 pb-6 text-line">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h1 id="booking-title" class="font-display text-2xl">{{ $booking->court->name }}</h1>
+                    <p class="mt-1 text-line/60">Booking ref <span class="font-condensed text-lg font-semibold tracking-wide text-line">{{ $booking->reference }}</span></p>
+                </div>
+                <x-status-badge :status="$booking->status" class="text-sm" />
             </div>
-            <x-status-badge :status="$booking->status" class="text-sm" />
+            <x-court-diagram
+                :kitchen="$booking->status->isActive() ? 'rgb(242 102 9 / 0.85)' : null"
+                class="mt-5 max-w-xs rounded-sm" />
         </div>
 
-        <div class="grid gap-6 p-6 sm:grid-cols-3">
+        <dl class="grid grid-cols-2 gap-x-6 gap-y-4 px-6 py-6 sm:grid-cols-3">
             <div>
-                <p class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Court</p>
-                <p class="mt-1 font-semibold">{{ $booking->court->name }}</p>
-                <p class="text-sm text-zinc-500">{{ $booking->court->surface_type }}</p>
+                <dt class="text-sm text-navy-600">Day</dt>
+                <dd class="font-semibold">{{ $booking->booking_date->format('D, M j, Y') }}</dd>
             </div>
             <div>
-                <p class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Date</p>
-                <p class="mt-1 font-semibold">{{ $booking->booking_date->format('l, F j, Y') }}</p>
+                <dt class="text-sm text-navy-600">Time</dt>
+                <dd class="font-semibold">{{ $fmt($booking->start_time) }} to {{ $fmt($booking->end_time) }}</dd>
             </div>
             <div>
-                <p class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Time</p>
-                <p class="mt-1 font-semibold">
-                    {{ \Carbon\Carbon::parse($booking->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($booking->end_time)->format('g:i A') }}
-                </p>
-                <p class="text-sm text-zinc-500">{{ rtrim(rtrim($booking->hours, '0'), '.') }} hour{{ $booking->hours > 1 ? 's' : '' }}</p>
+                <dt class="text-sm text-navy-600">Length</dt>
+                <dd class="font-semibold">{{ $hoursLabel }} {{ Str::plural('hour', (float) $booking->hours) }}</dd>
             </div>
-        </div>
+            @if ($booking->notes)
+                <div class="col-span-2 sm:col-span-3">
+                    <dt class="text-sm text-navy-600">Note for the front desk</dt>
+                    <dd>{{ $booking->notes }}</dd>
+                </div>
+            @endif
+        </dl>
 
-        @if ($booking->notes)
-            <div class="border-t border-zinc-100 px-6 py-4 text-sm">
-                <span class="font-semibold">Notes:</span> {{ $booking->notes }}
-            </div>
-        @endif
-
-        {{-- Paddle rentals --}}
-        <div class="border-t border-zinc-100 px-6 py-5">
-            <div class="mb-3 flex items-center justify-between gap-2">
-                <h2 class="font-semibold">Paddle rentals</h2>
+        {{-- Paddles --}}
+        <section class="border-t border-rule px-6 py-5" aria-labelledby="paddles-title">
+            <div class="mb-2 flex items-center justify-between gap-3">
+                <h2 id="paddles-title" class="font-semibold">Rental paddles</h2>
                 @if ($booking->isModifiable())
-                    <a href="{{ route('bookings.paddles', $booking) }}" wire:navigate class="btn-secondary btn-sm">+ Rent paddles</a>
+                    <a href="{{ route('bookings.paddles', $booking) }}" wire:navigate class="btn-secondary btn-sm">Add paddles</a>
                 @endif
             </div>
 
             @forelse ($booking->rentals as $rental)
-                <div wire:key="rental-{{ $rental->id }}" class="flex items-center justify-between gap-4 border-b border-zinc-100 py-3 last:border-0">
+                <div wire:key="rental-{{ $rental->id }}" class="flex items-center justify-between gap-4 border-b border-rule py-3 last:border-0">
                     <div>
-                        <p class="font-medium">{{ $rental->quantity }} × {{ $rental->paddle->name }}</p>
-                        <p class="text-xs text-zinc-500">₱{{ number_format($rental->unit_price, 2) }}/hr × {{ rtrim(rtrim($booking->hours, '0'), '.') }} hr × {{ $rental->quantity }}</p>
+                        <p class="font-medium">{{ $rental->quantity }} {{ Str::plural($rental->paddle->name, $rental->quantity) }}</p>
+                        <p class="text-sm text-navy-600">₱{{ number_format($rental->unit_price, 0) }}/hr for {{ $hoursLabel }} {{ Str::plural('hour', (float) $booking->hours) }}, {{ $rental->quantity }} {{ Str::plural('paddle', $rental->quantity) }}</p>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <span class="font-semibold">₱{{ number_format($rental->subtotal, 2) }}</span>
+                    <div class="flex items-center gap-4">
+                        <span class="font-condensed text-lg font-semibold">₱{{ number_format($rental->subtotal, 2) }}</span>
                         @if ($booking->isModifiable())
                             <button type="button" wire:click="removePaddle({{ $rental->paddle_id }})"
                                     wire:confirm="Remove {{ $rental->paddle->name }} from this booking?"
-                                    class="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Remove</button>
+                                    class="cursor-pointer text-sm font-semibold text-red-700 hover:underline">Remove</button>
                         @endif
                     </div>
                 </div>
             @empty
-                <p class="text-sm text-zinc-500">No paddles rented for this booking.</p>
+                <p class="text-navy-600">No paddles on this booking.</p>
             @endforelse
-        </div>
+        </section>
 
-        {{-- Totals --}}
-        <dl class="space-y-2 border-t border-zinc-100 bg-zinc-50 px-6 py-5 text-sm">
-            <div class="flex justify-between"><dt class="text-zinc-500">Court fee</dt><dd>₱{{ number_format($booking->court_fee, 2) }}</dd></div>
-            <div class="flex justify-between"><dt class="text-zinc-500">Paddle fee</dt><dd>₱{{ number_format($booking->paddle_fee, 2) }}</dd></div>
-            <div class="flex items-baseline justify-between border-t border-zinc-200 pt-3">
-                <dt class="font-semibold">Total</dt>
-                <dd class="text-2xl font-bold">₱{{ number_format($booking->total_amount, 2) }}</dd>
+        <div class="ticket-tear"></div>
+
+        <dl class="space-y-1.5 px-6 pt-5 pb-6">
+            <div class="flex justify-between"><dt class="text-navy-600">Court fee</dt><dd class="font-condensed text-lg font-semibold">₱{{ number_format($booking->court_fee, 2) }}</dd></div>
+            <div class="flex justify-between"><dt class="text-navy-600">Paddle fee</dt><dd class="font-condensed text-lg font-semibold">₱{{ number_format($booking->paddle_fee, 2) }}</dd></div>
+            <div class="flex items-baseline justify-between pt-2">
+                <dt class="text-lg font-semibold">Total</dt>
+                <dd class="font-condensed text-4xl leading-none font-semibold">₱{{ number_format($booking->total_amount, 2) }}</dd>
             </div>
         </dl>
+    </article>
 
-        @error('booking')
-            <div class="mx-6 mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{{ $message }}</div>
-        @enderror
+    @error('booking')
+        <p class="mt-4 rounded-sm border-l-4 border-red-700 bg-red-50 px-4 py-3 font-medium text-red-800" role="alert">{{ $message }}</p>
+    @enderror
 
-        @if ($booking->isModifiable())
-            <div class="flex justify-end border-t border-zinc-100 px-6 py-4">
-                <button type="button" wire:click="cancel" wire:confirm="Cancel this booking? This frees the court and any rented paddles."
-                        class="btn-danger btn-sm">Cancel booking</button>
-            </div>
-        @endif
-    </div>
+    @if ($booking->isModifiable())
+        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-navy-600">You can change or cancel this booking until {{ $fmt($booking->start_time) }} on {{ $booking->booking_date->format('M j') }}.</p>
+            <button type="button" wire:click="cancel" wire:confirm="Cancel this booking? The court and any paddles will be released."
+                    class="btn-secondary text-red-700 hover:border-red-700">Cancel booking</button>
+        </div>
+    @endif
+</div>
 </div>

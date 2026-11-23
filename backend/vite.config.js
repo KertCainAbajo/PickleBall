@@ -9,8 +9,17 @@ export default defineConfig({
             input: ['resources/css/app.css', 'resources/js/app.js'],
             refresh: true,
             fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
+                // UI face: athletic signage grotesk with tabular figures.
+                bunny('Barlow', {
+                    weights: [400, 500, 600, 700],
+                }),
+                // Times, prices, compact data.
+                bunny('Barlow Condensed', {
+                    weights: [500, 600, 700],
+                }),
+                // Varsity-style display font matching the logo lettering.
+                bunny('Graduate', {
+                    weights: [400],
                 }),
             ],
         }),

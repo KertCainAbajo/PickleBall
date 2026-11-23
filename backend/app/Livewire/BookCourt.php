@@ -130,7 +130,8 @@ class BookCourt extends Component
         return view('livewire.book-court', [
             'courts' => $courts,
             'court' => $court,
-            'slots' => $slots,
+            // Not "slots": Livewire 4 reserves $slots in component views for its own slot feature.
+            'timeSlots' => $slots,
             'quickDates' => collect(range(0, min(6, $this->maxDaysAhead())))->map(fn ($i) => today()->addDays($i))->all(),
             'maxDate' => today()->addDays($this->maxDaysAhead())->toDateString(),
             'maxDuration' => $this->maxDuration($slots),

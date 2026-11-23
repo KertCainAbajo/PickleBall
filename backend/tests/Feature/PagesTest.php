@@ -130,6 +130,18 @@ class PagesTest extends TestCase
         $this->assertEquals(1000, $booking->fresh()->total_amount);
     }
 
+    public function test_booking_page_renders_the_time_buttons(): void
+    {
+        $court = Court::factory()->create();
+        $tomorrow = now()->addDay()->toDateString();
+
+        // Regression: a view variable named $slots is overwritten by Livewire 4, which left the grid empty.
+        $this->get(route('book', ['court' => $court->id, 'date' => $tomorrow]))
+            ->assertOk()
+            ->assertSee('wire:key="slot-06:00"', false)
+            ->assertSee('wire:key="slot-21:00"', false);
+    }
+
     public function test_taken_slots_cannot_be_selected(): void
     {
         $court = Court::factory()->create();

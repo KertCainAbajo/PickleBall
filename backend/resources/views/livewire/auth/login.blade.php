@@ -1,9 +1,11 @@
-<div class="mx-auto max-w-md">
-    <div class="card p-8">
-        <h1 class="text-2xl font-bold tracking-tight">Welcome back</h1>
-        <p class="mt-1 text-sm text-zinc-600">Log in to book a court and rent paddles.</p>
+<div class="page">
+    <div class="mx-auto max-w-md overflow-hidden rounded-xl bg-white ring-1 ring-rule">
+        <div class="court-surface px-8 pt-7 pb-6 text-line">
+            <h1 class="font-display text-3xl">Log in</h1>
+            <p class="mt-2 text-line/70">Book courts, rent paddles and see your bookings.</p>
+        </div>
 
-        <form wire:submit="login" class="mt-6 space-y-4">
+        <form wire:submit="login" class="space-y-5 px-8 py-7">
             <div>
                 <label for="email" class="label">Email</label>
                 <input wire:model="email" id="email" type="email" class="input" autocomplete="email" autofocus required>
@@ -16,20 +18,20 @@
                 @error('password') <p class="error">{{ $message }}</p> @enderror
             </div>
 
-            <label class="flex items-center gap-2 text-sm text-zinc-700">
-                <input wire:model="remember" type="checkbox" class="size-4 rounded border-zinc-300 accent-court-700">
-                Remember me
+            <label class="flex items-center gap-2 text-navy-700">
+                <input wire:model="remember" type="checkbox" class="size-4 rounded-sm accent-navy-700">
+                Keep me logged in
             </label>
 
-            <button type="submit" class="btn-primary w-full" wire:loading.attr="disabled">
+            <button type="submit" class="btn-accent w-full py-3 text-base" wire:loading.attr="disabled" wire:target="login">
                 <span wire:loading.remove wire:target="login">Log in</span>
-                <span wire:loading wire:target="login">Logging in…</span>
+                <span wire:loading wire:target="login">Logging in</span>
             </button>
-        </form>
 
-        <p class="mt-6 text-center text-sm text-zinc-600">
-            No account yet?
-            <a href="{{ route('register') }}" wire:navigate class="font-semibold text-court-700 hover:underline">Sign up</a>
-        </p>
+            <p class="text-center text-navy-700">
+                New to the club?
+                <a href="{{ route('register') }}" wire:navigate class="font-semibold text-navy-900 underline decoration-brand underline-offset-4">Create an account</a>
+            </p>
+        </form>
     </div>
 </div>

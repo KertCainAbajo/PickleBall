@@ -1,4 +1,4 @@
-<div>
+<div class="page">
     <x-admin-nav title="Bookings" subtitle="Confirm, complete or cancel customer bookings." />
 
     {{-- Filters --}}
@@ -21,15 +21,15 @@
     </div>
 
     @if ($notice)
-        <div class="mb-4 rounded-xl border border-court-200 bg-court-50 px-4 py-3 text-sm font-medium text-court-800" role="status">{{ $notice }}</div>
+        <div class="mb-4 rounded-md border-l-4 border-ball-dark bg-white px-4 py-3 text-[0.9375rem] font-medium text-navy-900" role="status">{{ $notice }}</div>
     @endif
     @error('status')
-        <div class="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{{ $message }}</div>
+        <div class="mb-4 rounded-md border-l-4 border-red-700 bg-red-50 px-4 py-3 text-[0.9375rem] font-medium text-red-800" role="alert">{{ $message }}</div>
     @enderror
 
     <div class="card overflow-x-auto">
         <table class="w-full text-left text-sm">
-            <thead class="border-b border-zinc-200 bg-zinc-50 text-xs tracking-wide text-zinc-500 uppercase">
+            <thead class="border-b border-rule bg-concrete/60 text-sm text-navy-600">
                 <tr>
                     <th class="px-4 py-3 font-semibold">Booking</th>
                     <th class="px-4 py-3 font-semibold">Customer</th>
@@ -40,26 +40,26 @@
                     <th class="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-zinc-100">
+            <tbody class="divide-y divide-rule">
                 @forelse ($bookings as $booking)
                     <tr wire:key="admin-booking-{{ $booking->id }}" class="align-top">
                         <td class="px-4 py-3">
                             <p class="font-semibold">{{ $booking->reference }}</p>
-                            <p class="text-xs text-zinc-500">{{ $booking->court->name }}</p>
+                            <p class="text-xs text-navy-600">{{ $booking->court->name }}</p>
                         </td>
                         <td class="px-4 py-3">
                             <p>{{ $booking->user->name }}</p>
-                            <p class="text-xs text-zinc-500">{{ $booking->user->phone ?: $booking->user->email }}</p>
+                            <p class="text-xs text-navy-600">{{ $booking->user->phone ?: $booking->user->email }}</p>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
                             <p>{{ $booking->booking_date->format('M j, Y') }}</p>
-                            <p class="text-xs text-zinc-500">{{ \Carbon\Carbon::parse($booking->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($booking->end_time)->format('g:i A') }}</p>
+                            <p class="text-xs text-navy-600">{{ \Carbon\Carbon::parse($booking->start_time)->format('g:i A') }} – {{ \Carbon\Carbon::parse($booking->end_time)->format('g:i A') }}</p>
                         </td>
-                        <td class="px-4 py-3 text-xs text-zinc-600">
+                        <td class="px-4 py-3 text-xs text-navy-600">
                             @forelse ($booking->rentals as $rental)
-                                <p>{{ $rental->quantity }} × {{ $rental->paddle->name }}</p>
+                                <p>{{ $rental->quantity }} {{ Str::plural($rental->paddle->name, $rental->quantity) }}</p>
                             @empty
-                                <span class="text-zinc-400">—</span>
+                                <span class="text-navy-300">—</span>
                             @endforelse
                         </td>
                         <td class="px-4 py-3 text-right font-semibold whitespace-nowrap">₱{{ number_format($booking->total_amount, 2) }}</td>
@@ -80,7 +80,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-10 text-center text-zinc-500">No bookings match these filters.</td></tr>
+                    <tr><td colspan="7" class="px-4 py-10 text-center text-navy-600">No bookings match these filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -4,62 +4,221 @@
 @source '../../storage/framework/views/*.php';
 @source '../../app/Livewire/**/*.php';
 
+/*
+|--------------------------------------------------------------------------
+| PickleBall Club design tokens
+|--------------------------------------------------------------------------
+| Colours come from the club crest (public/images/logo.png).
+|  - Night court / court navy: surfaces and structure
+|  - Club orange: the one main action on a screen, and the kitchen zone
+|  - Ball lime: means "free / open" — nothing else
+|  - Line white: painted court lines
+|  - Concrete: page background (cool, like a hard court)
+| Type: Graduate (varsity, club name + page titles only), Barlow (UI),
+|       Barlow Condensed (times, prices, compact data).
+*/
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Barlow', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-condensed: 'Barlow Condensed', 'Barlow', ui-sans-serif, sans-serif;
+    --font-display: 'Graduate', 'Rockwell', 'Georgia', serif;
 
-    /* Court green + ball lime */
-    --color-court-50: #f0f7f3;
-    --color-court-100: #dcede3;
-    --color-court-200: #b9dbc8;
-    --color-court-600: #1f7a4d;
-    --color-court-700: #17603c;
-    --color-court-800: #124a2f;
-    --color-court-900: #0d3622;
-    --color-ball: #d4f24a;
-    --color-ball-dark: #b6d62a;
+    --color-navy-50: #eef2f7;
+    --color-navy-100: #dbe3ee;
+    --color-navy-200: #b6c5d9;
+    --color-navy-300: #8ea3bd;
+    --color-navy-600: #2e4a6b;
+    --color-navy-700: #21364e;
+    --color-navy-800: #172a3f;
+    --color-navy-900: #101c2c;
+
+    --color-brand-50: #fff4ec;
+    --color-brand-100: #ffe3cf;
+    --color-brand: #f26609;
+    --color-brand-dark: #d95606;
+
+    --color-ball: #d1f807;
+    --color-ball-dark: #9fbd00;
+
+    --color-line: #f4f5f7;
+    --color-concrete: #e9edf2;
+    --color-rule: #d3dae3;
+
+    /* Type scale (~1.25 ratio) */
+    --text-display: 3.25rem;
+    --text-display--line-height: 1.02;
+}
+
+@layer base {
+    body {
+        font-feature-settings: 'tnum' 1; /* times and prices line up */
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-brand);
+        outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+        }
+    }
 }
 
 [x-cloak] {
     display: none !important;
 }
 
-/* Reusable UI pieces (Tailwind v4 @utility so they can be combined with other classes). */
+/*
+|--------------------------------------------------------------------------
+| Buttons — shape is consistent; colour says what kind of action it is
+|--------------------------------------------------------------------------
+*/
 @utility btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition
-        focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-2.5 text-[0.9375rem] font-semibold transition-colors
+        disabled:cursor-not-allowed disabled:opacity-45;
+}
+/* The one main action on a screen. Navy text: white on this orange is too low-contrast. */
+@utility btn-accent {
+    @apply btn bg-brand text-navy-900 hover:bg-brand-dark;
 }
 @utility btn-primary {
-    @apply btn bg-court-700 text-white hover:bg-court-800 focus-visible:outline-court-700;
-}
-@utility btn-accent {
-    @apply btn bg-ball text-court-900 hover:bg-ball-dark focus-visible:outline-court-700;
+    @apply btn bg-navy-700 text-line hover:bg-navy-900;
 }
 @utility btn-secondary {
-    @apply btn border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 focus-visible:outline-zinc-400;
+    @apply btn border border-rule bg-white text-navy-900 hover:border-navy-300;
+}
+@utility btn-ghost-light {
+    @apply btn border border-line/30 text-line hover:border-line/70;
 }
 @utility btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600;
+    @apply btn bg-red-700 text-white hover:bg-red-800;
 }
 @utility btn-sm {
-    @apply px-3 py-1.5 text-xs;
+    @apply px-3 py-1.5 text-sm;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Surfaces
+|--------------------------------------------------------------------------
+*/
+/* Standard page column. Full-bleed sections (home hero) skip it. */
+@utility page {
+    @apply mx-auto w-full max-w-6xl px-4 py-10 sm:px-6;
+}
+
+/* Plain panel: hairline border, no drop shadow. */
 @utility card {
-    @apply rounded-2xl border border-zinc-200 bg-white shadow-sm;
+    @apply rounded-lg border border-rule bg-white;
 }
 
+/* Night-court surface with faint painted lines, for hero / headers. */
+@utility court-surface {
+    background-color: var(--color-navy-900);
+    /* One faint centre line and wide-spaced sidelines, like a court seen from above. */
+    background-image:
+        linear-gradient(to right, transparent calc(50% - 1px), rgb(244 245 247 / 0.05) calc(50% - 1px), rgb(244 245 247 / 0.05) calc(50% + 1px), transparent calc(50% + 1px)),
+        linear-gradient(to right, rgb(244 245 247 / 0.035) 2px, transparent 2px);
+    background-size: 100% 100%, 440px 100%;
+    background-position: center top;
+}
+
+/* Taken time: diagonal shading like a closed-off court area. */
+@utility hatched {
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgb(16 28 44 / 0.07) 0 6px,
+        transparent 6px 12px
+    );
+}
+
+/*
+ * A booking is a ticket to play. `.ticket` is the white stub;
+ * `.ticket-tear` is the perforated line with notches cut out of both sides.
+ */
+@utility ticket {
+    @apply relative rounded-xl bg-white;
+}
+@utility ticket-tear {
+    position: relative;
+    border-top: 2px dashed var(--color-rule);
+    &::before,
+    &::after {
+        content: '';
+        position: absolute;
+        top: -12px;
+        width: 22px;
+        height: 22px;
+        border-radius: 9999px;
+        background: var(--color-concrete);
+    }
+    &::before {
+        left: -11px;
+    }
+    &::after {
+        right: -11px;
+    }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Forms
+|--------------------------------------------------------------------------
+*/
 @utility label {
-    @apply mb-1.5 block text-sm font-medium text-zinc-700;
+    @apply mb-1.5 block text-sm font-semibold text-navy-900;
 }
 @utility input {
-    @apply block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 shadow-xs
-        placeholder:text-zinc-400 focus:border-court-600 focus:ring-2 focus:ring-court-600/20 focus:outline-none;
+    @apply block w-full rounded-md border border-rule bg-white px-3 py-2.5 text-[0.9375rem] text-navy-900
+        placeholder:text-navy-300 focus:border-navy-700 focus:outline-none focus:ring-2 focus:ring-navy-700/15;
 }
 @utility error {
-    @apply mt-1.5 text-sm text-red-600;
+    @apply mt-1.5 text-sm font-medium text-red-700;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Type
+|--------------------------------------------------------------------------
+*/
+/* Page titles in the club's varsity face, quiet (no outline). */
+@utility page-title {
+    font-family: var(--font-display);
+    color: var(--color-navy-900);
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+}
+
+/*
+ * Crest lettering: varsity face, white fill, orange inline,
+ * navy ring and thin white outer ring — like "PICKLEBALL" in the logo.
+ */
+@utility wordmark {
+    --wm-in: 0.055em;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    color: var(--color-line);
+    text-shadow:
+        var(--wm-in) 0 0 var(--color-brand),
+        calc(var(--wm-in) * -1) 0 0 var(--color-brand),
+        0 var(--wm-in) 0 var(--color-brand),
+        0 calc(var(--wm-in) * -1) 0 var(--color-brand),
+        var(--wm-in) var(--wm-in) 0 var(--color-brand),
+        calc(var(--wm-in) * -1) var(--wm-in) 0 var(--color-brand),
+        var(--wm-in) calc(var(--wm-in) * -1) 0 var(--color-brand),
+        calc(var(--wm-in) * -1) calc(var(--wm-in) * -1) 0 var(--color-brand);
+    filter: drop-shadow(0.045em 0 0 var(--color-navy-900)) drop-shadow(-0.045em 0 0 var(--color-navy-900))
+        drop-shadow(0 0.045em 0 var(--color-navy-900)) drop-shadow(0 -0.045em 0 var(--color-navy-900))
+        drop-shadow(0.025em 0 0 #ffffff) drop-shadow(-0.025em 0 0 #ffffff) drop-shadow(0 0.025em 0 #ffffff)
+        drop-shadow(0 -0.025em 0 #ffffff);
 }
 
 @utility badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    @apply inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold;
 }

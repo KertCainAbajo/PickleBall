@@ -5,9 +5,9 @@
 
     $classes = match ($status) {
         \App\Enums\BookingStatus::Pending => 'bg-amber-100 text-amber-800',
-        \App\Enums\BookingStatus::Confirmed => 'bg-court-100 text-court-800',
+        \App\Enums\BookingStatus::Confirmed => 'bg-emerald-100 text-emerald-800',
         \App\Enums\BookingStatus::Completed => 'bg-sky-100 text-sky-800',
-        \App\Enums\BookingStatus::Cancelled => 'bg-zinc-200 text-zinc-600',
+        \App\Enums\BookingStatus::Cancelled => 'bg-navy-100 text-navy-600',
     };
 @endphp
 
