@@ -49,6 +49,7 @@
                     <input wire:model="is_active" type="checkbox" class="size-4 rounded accent-navy-700">
                     Open for booking
                 </label>
+                <x-photo-field class="sm:col-span-2" :photo="$photo" :current="$currentPhotoUrl" :remove="$removePhoto" fallback="court" />
             </div>
             <div class="mt-6 flex justify-end gap-3">
                 <button type="button" wire:click="resetForm" class="btn-secondary">Cancel</button>
@@ -73,8 +74,19 @@
                 @forelse ($courts as $court)
                     <tr wire:key="court-{{ $court->id }}">
                         <td class="px-4 py-3">
-                            <p class="font-semibold">{{ $court->name }}</p>
-                            <p class="text-xs text-navy-600">{{ $court->surface_type }}</p>
+                            <div class="flex items-center gap-3">
+                                <div class="grid h-10 w-14 shrink-0 place-items-center overflow-hidden rounded-md bg-navy-900 ring-1 ring-rule">
+                                    @if ($court->image_url)
+                                        <img src="{{ $court->image_url }}" alt="" class="size-full object-cover" loading="lazy">
+                                    @else
+                                        <x-court-diagram class="w-12" />
+                                    @endif
+                                </div>
+                                <div>
+                                    <p class="font-semibold">{{ $court->name }}</p>
+                                    <p class="text-xs text-navy-600">{{ $court->surface_type }}</p>
+                                </div>
+                            </div>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">{{ \Carbon\Carbon::parse($court->opening_time)->format('g A') }} – {{ \Carbon\Carbon::parse($court->closing_time)->format('g A') }}</td>
                         <td class="px-4 py-3 text-right whitespace-nowrap">₱{{ number_format($court->hourly_rate, 2) }}/hr</td>

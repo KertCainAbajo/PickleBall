@@ -2,8 +2,10 @@
     @php($fmt = fn ($t, $f = 'g:i A') => \Carbon\Carbon::parse($t)->format($f))
     @php($hours = (float) $booking->hours)
 
-    <x-page-header title="Rent paddles"
-        :subtitle="'Your court is booked. Add paddles for the same time, '.$fmt($booking->start_time).' to '.$fmt($booking->end_time).' on '.$booking->booking_date->format('l, F j').', or skip this step.'" />
+    <x-page-header title="Rent paddles" :image="$booking->court->image_path"
+        :subtitle="'Your court is booked. Add paddles for the same time, '.$fmt($booking->start_time).' to '.$fmt($booking->end_time).' on '.$booking->booking_date->format('l, F j').', or skip this step.'">
+        <x-booking-steps :current="2" />
+    </x-page-header>
 
 <div class="page">
 

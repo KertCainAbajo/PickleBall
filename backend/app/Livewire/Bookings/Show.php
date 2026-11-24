@@ -21,6 +21,9 @@ class Show extends Component
         Gate::authorize('view', $booking);
 
         $this->booking = $booking->load(['court', 'rentals.paddle']);
+
+        // Show "Paddles added" etc. inside the page instead of the layout's top banner.
+        $this->notice = session()->pull('success');
     }
 
     public function removePaddle(int $paddleId, BookingService $bookings): void

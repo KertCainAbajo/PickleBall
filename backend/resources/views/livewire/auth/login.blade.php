@@ -1,37 +1,33 @@
-<div class="page">
-    <div class="mx-auto max-w-md overflow-hidden rounded-xl bg-white ring-1 ring-rule">
-        <div class="court-surface px-8 pt-7 pb-6 text-line">
-            <h1 class="font-display text-3xl">Log in</h1>
-            <p class="mt-2 text-line/70">Book courts, rent paddles and see your bookings.</p>
-        </div>
-
-        <form wire:submit="login" class="space-y-5 px-8 py-7">
+<div>
+    <x-auth-shell title="Welcome back" subtitle="Log in to book courts and rent paddles." image="images/cta-player.jpg" position="55% 30%">
+        <form wire:submit="login" class="space-y-5" novalidate>
             <div>
                 <label for="email" class="label">Email</label>
-                <input wire:model="email" id="email" type="email" class="input" autocomplete="email" autofocus required>
-                @error('email') <p class="error">{{ $message }}</p> @enderror
+                <input wire:model="email" id="email" type="email" class="input h-12 text-base" autocomplete="email" autofocus required
+                       @error('email') aria-invalid="true" aria-describedby="email-error" @enderror>
+                @error('email') <p id="email-error" class="error">{{ $message }}</p> @enderror
             </div>
 
             <div>
                 <label for="password" class="label">Password</label>
-                <input wire:model="password" id="password" type="password" class="input" autocomplete="current-password" required>
+                <x-password-input id="password" model="password" autocomplete="current-password" required />
                 @error('password') <p class="error">{{ $message }}</p> @enderror
             </div>
 
-            <label class="flex items-center gap-2 text-navy-700">
-                <input wire:model="remember" type="checkbox" class="size-4 rounded-sm accent-navy-700">
-                Keep me logged in
+            <label class="flex cursor-pointer items-center gap-2.5 text-navy-700">
+                <input wire:model="remember" type="checkbox" class="size-5 rounded-sm accent-navy-700">
+                Keep me logged in on this device
             </label>
 
-            <button type="submit" class="btn-accent w-full py-3 text-base" wire:loading.attr="disabled" wire:target="login">
+            <button type="submit" class="btn-accent h-12 w-full text-base" wire:loading.attr="disabled" wire:target="login">
                 <span wire:loading.remove wire:target="login">Log in</span>
                 <span wire:loading wire:target="login">Logging in</span>
             </button>
-
-            <p class="text-center text-navy-700">
-                New to the club?
-                <a href="{{ route('register') }}" wire:navigate class="font-semibold text-navy-900 underline decoration-brand underline-offset-4">Create an account</a>
-            </p>
         </form>
-    </div>
+
+        <x-slot:aside>
+            New to the club?
+            <a href="{{ route('register') }}" wire:navigate class="font-semibold text-navy-900 underline decoration-brand decoration-2 underline-offset-4 hover:decoration-navy-900">Create an account</a>
+        </x-slot:aside>
+    </x-auth-shell>
 </div>

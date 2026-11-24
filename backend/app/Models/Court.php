@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPhoto;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,12 +19,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $opening_time "HH:MM:SS"
  * @property string $closing_time "HH:MM:SS"
  * @property bool $is_active
+ * @property string|null $image_path relative to public/, e.g. "uploads/courts/abc.jpg"
+ * @property-read string|null $image_url
  * @property-read Collection<int, Booking> $bookings
  */
-#[Fillable(['name', 'description', 'surface_type', 'hourly_rate', 'opening_time', 'closing_time', 'is_active'])]
+#[Fillable(['name', 'description', 'surface_type', 'image_path', 'hourly_rate', 'opening_time', 'closing_time', 'is_active'])]
 class Court extends Model
 {
-    use HasFactory;
+    use HasFactory, HasPhoto;
+
+    /** Folder (inside the "uploads" disk) where admin-uploaded court photos go. */
+    public const UPLOAD_DIR = 'courts';
 
     /** Cache key for the club opening hours shown in the site footer. */
     public const HOURS_CACHE_KEY = 'club-hours';

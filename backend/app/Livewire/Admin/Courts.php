@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\ManagesPhoto;
 use App\Models\Court;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Title;
@@ -10,6 +11,8 @@ use Livewire\Component;
 #[Title('Manage Courts')]
 class Courts extends Component
 {
+    use ManagesPhoto;
+
     public bool $showForm = false;
 
     public ?int $editingId = null;
@@ -40,7 +43,13 @@ class Courts extends Component
             'opening_time' => ['required', 'date_format:H:i'],
             'closing_time' => ['required', 'date_format:H:i', 'after:opening_time'],
             'is_active' => ['boolean'],
+            ...$this->photoRules(),
         ];
+    }
+
+    protected function messages(): array
+    {
+        return $this->photoMessages();
     }
 
     public function create(): void
@@ -53,7 +62,7 @@ class Courts extends Component
     {
         $court = Court::findOrFail($id);
 
-        $this->resetValidation();
+        $this->resetForm();
         $this->editingId = $court->id;
         $this->name = $court->name;
         $this->description = (string) $court->description;
@@ -62,23 +71,21 @@ class Courts extends Component
         $this->opening_time = Carbon::parse($court->opening_time)->format('H:i');
         $this->closing_time = Carbon::parse($court->closing_time)->format('H:i');
         $this->is_active = $court->is_active;
+        $this->currentPhotoUrl = $court->image_url;
         $this->showForm = true;
     }
 
     public function save(): void
     {
         $data = $this->validate();
+        unset($data['photo']);
         $data['description'] = $data['description'] ?: null;
         $data['surface_type'] = $data['surface_type'] ?: null;
 
-        if ($this->editingId) {
-            Court::findOrFail($this->editingId)->update($data);
-            $this->notice = "{$data['name']} updated.";
-        } else {
-            Court::create($data);
-            $this->notice = "{$data['name']} added.";
-        }
+        $court = $this->editingId ? Court::findOrFail($this->editingId) : new Court;
+        $court->fill($data + $this->applyPhoto($court))->save();
 
+        $this->notice = $this->editingId ? "{$court->name} updated." : "{$court->name} added.";
         $this->resetForm();
     }
 
@@ -100,6 +107,7 @@ class Courts extends Component
             return;
         }
 
+        $court->deleteUploadedImage();
         $court->delete();
         $this->notice = "{$court->name} deleted.";
     }
@@ -107,6 +115,7 @@ class Courts extends Component
     public function resetForm(): void
     {
         $this->reset('showForm', 'editingId', 'name', 'description', 'surface_type', 'hourly_rate', 'opening_time', 'closing_time', 'is_active');
+        $this->resetPhoto();
         $this->resetValidation();
     }
 

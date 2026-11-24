@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\BookingStatus;
 use App\Livewire\Admin\Bookings as AdminBookings;
 use App\Livewire\Admin\Courts as AdminCourts;
+use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Paddles as AdminPaddles;
 use App\Livewire\Auth\Login;
 use App\Livewire\Auth\Register;
@@ -211,6 +212,20 @@ class PagesTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->get(route('bookings.show', $booking))
             ->assertForbidden();
+    }
+
+    public function test_admin_can_confirm_from_the_dashboard_queue(): void
+    {
+        $this->actingAs(User::factory()->admin()->create());
+        $booking = Booking::factory()->create();
+
+        Livewire::test(Dashboard::class)
+            ->assertSee($booking->user->name)
+            ->call('changeStatus', $booking->id, 'confirmed')
+            ->assertSee('is now confirmed')
+            ->assertSee('All caught up');
+
+        $this->assertSame(BookingStatus::Confirmed, $booking->fresh()->status);
     }
 
     public function test_admin_can_upload_replace_and_remove_a_paddle_photo(): void

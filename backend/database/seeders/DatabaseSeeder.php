@@ -35,12 +35,18 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Court 4', 'surface_type' => 'Outdoor', 'hourly_rate' => 300, 'description' => 'Open-air outdoor court.'],
         ];
 
-        foreach ($courts as $court) {
-            Court::updateOrCreate(['name' => $court['name']], $court + [
+        foreach ($courts as $i => $data) {
+            $court = Court::firstOrNew(['name' => $data['name']]);
+            $court->fill($data + [
                 'opening_time' => '06:00:00',
                 'closing_time' => '22:00:00',
                 'is_active' => true,
             ]);
+            // Default photo (public/images/courts); never replace one an admin uploaded.
+            if (! $court->image_path || str_starts_with($court->image_path, 'images/courts/')) {
+                $court->image_path = 'images/courts/court-'.($i + 1).'.jpg';
+            }
+            $court->save();
         }
 
         // Brand product photos ship in public/images/paddles; admins can replace them in Admin > Paddles.

@@ -68,6 +68,12 @@ return [
     'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
+    | On a local machine, `php artisan serve` first applies new migrations and
+    | rebuilds the styles if views/CSS changed (see App\Console\PrepareLocalServer).
+    */
+    'auto_update_on_serve' => (bool) env('AUTO_UPDATE_ON_SERVE', true),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

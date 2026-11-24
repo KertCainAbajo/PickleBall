@@ -1,0 +1,19 @@
+{
+    // "Start PickleBall" runs automatically when this folder opens in VS Code
+    // (VS Code asks once to allow automatic tasks). It updates the database,
+    // rebuilds the styles, and starts the server + live style updates.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start PickleBall",
+            "type": "shell",
+            "command": "${workspaceFolder}\\start.bat",
+            "args": ["--no-browser"],
+            "options": { "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] } },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+            "runOptions": { "runOn": "folderOpen" }
+        }
+    ]
+}

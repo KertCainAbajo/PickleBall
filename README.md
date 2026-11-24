@@ -68,7 +68,25 @@ npm run build
 
 ## Running the app
 
-Open two terminals in the `backend` folder:
+**Easiest (Windows):** double-click `start.bat` in the project folder. Each time, it:
+- installs missing packages
+- applies new database migrations
+- rebuilds the styles
+- starts the server with live style updates
+- opens http://127.0.0.1:8000
+
+Opening the folder in **VS Code** runs the same thing automatically: allow automatic tasks the first time VS Code asks. It skips opening the browser.
+
+Press `Ctrl + C` in that terminal to stop everything.
+
+**Just `php artisan serve` also works.** On your local machine it updates things before the server starts:
+- applies new database migrations
+- rebuilds the styles if any view, CSS or Livewire file changed since the last build
+- removes a leftover Vite file if Vite isn't running
+
+To turn this off, set `AUTO_UPDATE_ON_SERVE=false` in `.env`.
+
+**For live style updates while editing,** open two terminals in the `backend` folder:
 
 ```bash
 # Terminal 1: the Laravel app

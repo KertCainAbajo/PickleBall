@@ -2,15 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPhoto;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -28,26 +27,10 @@ use Illuminate\Support\Facades\Storage;
 #[Fillable(['name', 'brand', 'description', 'image_path', 'hourly_rate', 'stock_quantity', 'is_active'])]
 class Paddle extends Model
 {
-    use HasFactory;
+    use HasFactory, HasPhoto;
 
     /** Folder (inside the "uploads" disk) where admin-uploaded paddle photos go. */
     public const UPLOAD_DIR = 'paddles';
-
-    /** Public URL of the photo, or null when the paddle has none (views then draw a paddle). */
-    protected function imageUrl(): Attribute
-    {
-        return Attribute::get(
-            fn () => $this->image_path ? asset($this->image_path) : null,
-        );
-    }
-
-    /** Delete the photo file if it was uploaded by an admin (bundled default images are kept). */
-    public function deleteUploadedImage(): void
-    {
-        if ($this->image_path && str_starts_with($this->image_path, 'uploads/')) {
-            Storage::disk('uploads')->delete(substr($this->image_path, strlen('uploads/')));
-        }
-    }
 
     protected function casts(): array
     {
