@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\BookingStatus;
+use App\Enums\PaymentMethod;
 use App\Livewire\Admin\Bookings as AdminBookings;
 use App\Livewire\Admin\Courts as AdminCourts;
 use App\Livewire\Admin\Dashboard;
@@ -16,9 +17,11 @@ use App\Models\Booking;
 use App\Models\Court;
 use App\Models\Paddle;
 use App\Models\User;
+use App\Services\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -214,18 +217,56 @@ class PagesTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_can_confirm_from_the_dashboard_queue(): void
+    public function test_admin_must_record_payment_before_confirming_from_the_dashboard(): void
     {
         $this->actingAs(User::factory()->admin()->create());
         $booking = Booking::factory()->create();
 
+        // Unpaid: confirming is refused.
         Livewire::test(Dashboard::class)
             ->assertSee($booking->user->name)
+            ->assertSee('Record payment')
+            ->call('changeStatus', $booking->id, 'confirmed')
+            ->assertHasErrors('status');
+        $this->assertSame(BookingStatus::Pending, $booking->fresh()->status);
+
+        // GCash needs a reference number.
+        Livewire::test(Dashboard::class)
+            ->call('startPayment', $booking->id)
+            ->set('paymentMethod', 'gcash')
+            ->call('recordPayment')
+            ->assertHasErrors('payment_reference')
+            ->set('paymentReference', '1234 567 890')
+            ->call('recordPayment')
+            ->assertHasNoErrors()
+            ->assertSee('Payment of ₱800.00 recorded')
             ->call('changeStatus', $booking->id, 'confirmed')
             ->assertSee('is now confirmed')
             ->assertSee('All caught up');
 
-        $this->assertSame(BookingStatus::Confirmed, $booking->fresh()->status);
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Confirmed, $booking->status);
+        $this->assertEquals(800, $booking->amount_paid);
+        $this->assertSame('1234 567 890', $booking->payment_reference);
+    }
+
+    public function test_paddles_added_after_payment_must_be_paid_before_completing(): void
+    {
+        $booking = Booking::factory()->create(['total_amount' => 800, 'amount_paid' => 800, 'paid_at' => now(), 'status' => BookingStatus::Confirmed]);
+        $paddle = Paddle::factory()->create(['hourly_rate' => 50]);
+        $service = app(BookingService::class);
+
+        $booking = $service->addPaddles($booking, [['paddle_id' => $paddle->id, 'quantity' => 1]]);
+        $this->assertEquals(100, $booking->balanceDue());
+
+        try {
+            $service->changeStatus($booking, BookingStatus::Completed);
+            $this->fail('Completing with a balance due should be refused.');
+        } catch (ValidationException) {
+        }
+
+        $service->recordPayment($booking, PaymentMethod::Cash);
+        $this->assertSame(BookingStatus::Completed, $service->changeStatus($booking, BookingStatus::Completed)->status);
     }
 
     public function test_admin_can_upload_replace_and_remove_a_paddle_photo(): void
@@ -277,6 +318,8 @@ class PagesTest extends TestCase
         $booking = Booking::factory()->create();
 
         Livewire::test(AdminBookings::class)
+            ->call('startPayment', $booking->id)
+            ->call('recordPayment')
             ->call('changeStatus', $booking->id, 'confirmed')
             ->assertSee('is now confirmed');
         $this->assertSame(BookingStatus::Confirmed, $booking->fresh()->status);

@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Enums\BookingStatus;
+use App\Livewire\Concerns\RecordsPayments;
 use App\Models\Booking;
 use App\Models\BookingPaddle;
 use App\Models\Court;
@@ -14,6 +15,8 @@ use Livewire\Component;
 #[Title('Admin Dashboard')]
 class Dashboard extends Component
 {
+    use RecordsPayments;
+
     /** Days shown in the revenue chart. */
     private const REVENUE_DAYS = 14;
 

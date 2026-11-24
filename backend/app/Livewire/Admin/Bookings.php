@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Enums\BookingStatus;
+use App\Livewire\Concerns\RecordsPayments;
 use App\Models\Booking;
 use App\Models\Court;
 use App\Services\BookingService;
@@ -14,6 +15,7 @@ use Livewire\WithPagination;
 #[Title('Manage Bookings')]
 class Bookings extends Component
 {
+    use RecordsPayments;
     use WithPagination;
 
     #[Url]

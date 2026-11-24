@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\DateOnly;
 use App\Enums\BookingStatus;
+use App\Enums\PaymentMethod;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,6 +27,10 @@ use Illuminate\Support\Str;
  * @property string $court_fee
  * @property string $paddle_fee
  * @property string $total_amount
+ * @property string $amount_paid
+ * @property PaymentMethod|null $payment_method
+ * @property string|null $payment_reference
+ * @property Carbon|null $paid_at
  * @property BookingStatus $status
  * @property string|null $notes
  * @property Carbon|null $cancelled_at
@@ -45,6 +50,7 @@ use Illuminate\Support\Str;
 #[Fillable([
     'reference', 'user_id', 'court_id', 'booking_date', 'start_time', 'end_time',
     'hours', 'court_fee', 'paddle_fee', 'total_amount', 'status', 'notes', 'cancelled_at',
+    'amount_paid', 'payment_method', 'payment_reference', 'paid_at',
 ])]
 class Booking extends Model
 {
@@ -53,6 +59,7 @@ class Booking extends Model
     protected $attributes = [
         'status' => 'pending',
         'paddle_fee' => 0,
+        'amount_paid' => 0,
     ];
 
     protected static function booted(): void
@@ -72,6 +79,9 @@ class Booking extends Model
             'total_amount' => 'decimal:2',
             'status' => BookingStatus::class,
             'cancelled_at' => 'datetime',
+            'amount_paid' => 'decimal:2',
+            'payment_method' => PaymentMethod::class,
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -179,6 +189,18 @@ class Booking extends Model
     public function endsAt(): Carbon
     {
         return Carbon::parse($this->booking_date->toDateString().' '.$this->end_time);
+    }
+
+    /** What is still owed. Goes above zero again if paddles are added after paying. */
+    public function balanceDue(): float
+    {
+        return max(0, round((float) $this->total_amount - (float) $this->amount_paid, 2));
+    }
+
+    /** Paid in full. A booking must be paid before the club confirms it. */
+    public function isPaid(): bool
+    {
+        return (float) $this->amount_paid > 0 && $this->balanceDue() <= 0;
     }
 
     /** Recompute paddle_fee and total_amount from the rental lines and save. */

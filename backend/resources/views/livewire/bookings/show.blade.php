@@ -7,17 +7,21 @@
         $startsAt = $booking->startsAt();
         $upcoming = $status->isActive() && $startsAt->isFuture();
 
-        // Progress: 1 booked, 2 confirmed by the club, 3 played.
+        $paid = $booking->isPaid();
+        $due = $booking->balanceDue();
+
+        // Progress: 1 booked, 2 paid, 3 confirmed by the club, 4 played.
         $reached = match ($status) {
-            \App\Enums\BookingStatus::Pending => 1,
-            \App\Enums\BookingStatus::Confirmed => 2,
-            \App\Enums\BookingStatus::Completed => 3,
+            \App\Enums\BookingStatus::Pending => $paid ? 2 : 1,
+            \App\Enums\BookingStatus::Confirmed => 3,
+            \App\Enums\BookingStatus::Completed => 4,
             default => 0,
         };
         $progress = [
             ['Booked', $booking->created_at?->format('M j, g:i A')],
-            ['Confirmed by the club', $reached >= 2 ? 'Your court is held for you' : 'Waiting for the club to confirm'],
-            ['Played', $reached >= 3 ? 'Thanks for playing' : $startsAt->format('D, M j, g:i A')],
+            ['Paid', $booking->paid_at ? $booking->paid_at->format('M j, g:i A') : '₱'.number_format($due, 2).' to pay'],
+            ['Confirmed by the club', $reached >= 3 ? 'Your court is held for you' : ($paid ? 'Waiting for the club to confirm' : 'Confirmed after payment')],
+            ['Played', $reached >= 4 ? 'Thanks for playing' : $startsAt->format('D, M j, g:i A')],
         ];
     @endphp
 
@@ -57,7 +61,7 @@
                             This booking was cancelled{{ $booking->cancelled_at ? ' on '.$booking->cancelled_at->format('M j, g:i A') : '' }}. The court and any paddles were released.
                         </p>
                     @else
-                        <ol class="mt-5 grid gap-5 sm:grid-cols-3">
+                        <ol class="mt-5 grid gap-5 sm:grid-cols-4">
                             @foreach ($progress as $i => [$label, $detail])
                                 @php
                                     $n = $i + 1;
@@ -177,15 +181,32 @@
                     <dl class="space-y-2 px-5 py-5">
                         <div class="flex justify-between"><dt class="text-navy-600">Court fee</dt><dd class="font-condensed text-lg font-bold">₱{{ number_format($booking->court_fee, 2) }}</dd></div>
                         <div class="flex justify-between"><dt class="text-navy-600">Paddle fee</dt><dd class="font-condensed text-lg font-bold">₱{{ number_format($booking->paddle_fee, 2) }}</dd></div>
+                        @if ((float) $booking->amount_paid > 0)
+                            <div class="flex justify-between">
+                                <dt class="text-navy-600">Paid{{ $booking->payment_method ? ' by '.$booking->payment_method->label() : '' }}</dt>
+                                <dd class="font-condensed text-lg font-bold text-emerald-700">−₱{{ number_format($booking->amount_paid, 2) }}</dd>
+                            </div>
+                        @endif
                     </dl>
 
                     <div class="ticket-tear"></div>
 
                     <div class="px-5 pt-4 pb-5">
                         <div class="flex items-baseline justify-between">
-                            <span class="text-lg font-semibold">Total</span>
-                            <span class="font-condensed text-4xl leading-none font-bold">₱{{ number_format($booking->total_amount, 2) }}</span>
+                            <span class="text-lg font-semibold">{{ $paid ? 'Total' : 'Amount due' }}</span>
+                            <span class="font-condensed text-4xl leading-none font-bold">₱{{ number_format($paid ? $booking->total_amount : $due, 2) }}</span>
                         </div>
+
+                        @if ($paid)
+                            <p class="mt-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                                <svg viewBox="0 0 16 16" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5"/></svg>
+                                Paid in full{{ $booking->payment_reference ? ', ref. '.$booking->payment_reference : '' }}
+                            </p>
+                        @elseif ($status->isActive())
+                            <p class="mt-3 rounded-md border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900" role="status">
+                                Not paid yet. The club confirms your court once payment is received.
+                            </p>
+                        @endif
 
                         @error('booking')
                             <p class="mt-4 rounded-md border-l-4 border-red-700 bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">{{ $message }}</p>

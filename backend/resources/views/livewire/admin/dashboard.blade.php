@@ -25,6 +25,9 @@
     @if ($notice)
         <p class="mb-5 rounded-md border-l-4 border-ball-dark bg-white px-4 py-3 font-medium shadow-lift" role="status">{{ $notice }}</p>
     @endif
+    @error('status')
+        <p class="mb-5 rounded-md border-l-4 border-red-700 bg-red-50 px-4 py-3 font-medium text-red-800" role="alert">{{ $message }}</p>
+    @enderror
 
     {{-- ── KPI tiles ─────────────────────────────────────────────── --}}
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -156,13 +159,24 @@
                                 <p class="text-sm text-navy-600">{{ $b->court->name }}, {{ $b->booking_date->isToday() ? 'today' : $b->booking_date->format('D, M j') }}</p>
                                 <p class="font-condensed font-bold">{{ $fmt($b->start_time) }}–{{ $fmt($b->end_time) }}</p>
                             </div>
-                            <p class="font-condensed text-lg font-bold whitespace-nowrap">{{ $peso($b->total_amount) }}</p>
+                            <div class="text-right">
+                                <p class="font-condensed text-lg font-bold whitespace-nowrap">{{ $peso($b->total_amount) }}</p>
+                                <x-payment-badge :booking="$b" />
+                            </div>
                         </div>
-                        <div class="mt-3 flex gap-2">
-                            <button type="button" wire:click="changeStatus({{ $b->id }}, 'confirmed')" class="btn-primary btn-sm flex-1">Confirm</button>
-                            <button type="button" wire:click="changeStatus({{ $b->id }}, 'cancelled')" wire:confirm="Cancel booking {{ $b->reference }}?"
-                                    class="btn-secondary btn-sm text-red-700">Cancel</button>
-                        </div>
+                        @if ($payingId === $b->id)
+                            <x-payment-form :booking="$b" :selected="$paymentMethod" class="mt-3" />
+                        @else
+                            <div class="mt-3 flex gap-2">
+                                @if ($b->isPaid())
+                                    <button type="button" wire:click="changeStatus({{ $b->id }}, 'confirmed')" class="btn-primary btn-sm flex-1">Confirm</button>
+                                @else
+                                    <button type="button" wire:click="startPayment({{ $b->id }})" class="btn-accent btn-sm flex-1">Record payment</button>
+                                @endif
+                                <button type="button" wire:click="changeStatus({{ $b->id }}, 'cancelled')" wire:confirm="Cancel booking {{ $b->reference }}?"
+                                        class="btn-secondary btn-sm text-red-700">Cancel</button>
+                            </div>
+                        @endif
                     </li>
                 @empty
                     <li class="px-5 py-10 text-center">

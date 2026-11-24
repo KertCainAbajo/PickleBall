@@ -34,6 +34,9 @@
                         <div class="flex flex-wrap items-center gap-2">
                             <p class="text-lg font-semibold group-hover:underline group-hover:decoration-brand group-hover:underline-offset-4">{{ $booking->court->name }}</p>
                             <x-status-badge :status="$booking->status" />
+                            @if ($booking->status->isActive())
+                                <x-payment-badge :booking="$booking" />
+                            @endif
                         </div>
                         <p class="font-condensed text-lg font-semibold text-navy-700">{{ $fmt($booking->start_time) }} to {{ $fmt($booking->end_time) }}</p>
                         <p class="text-sm text-navy-600">

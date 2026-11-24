@@ -1,5 +1,5 @@
 <div class="page">
-    <x-admin-nav title="Bookings" subtitle="Confirm, complete or cancel customer bookings." />
+    <x-admin-nav title="Bookings" subtitle="Record payments, then confirm, complete or cancel bookings." />
 
     {{-- Filters --}}
     <div class="card mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
@@ -62,21 +62,32 @@
                                 <span class="text-navy-300">—</span>
                             @endforelse
                         </td>
-                        <td class="px-4 py-3 text-right font-semibold whitespace-nowrap">₱{{ number_format($booking->total_amount, 2) }}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <p class="font-semibold">₱{{ number_format($booking->total_amount, 2) }}</p>
+                            <x-payment-badge :booking="$booking" class="mt-1" />
+                            @if ($booking->paid_at)
+                                <p class="mt-1 text-xs text-navy-600">{{ $booking->payment_method?->label() ?? 'Paid' }}{{ $booking->payment_reference ? ' · '.$booking->payment_reference : '' }}</p>
+                            @endif
+                        </td>
                         <td class="px-4 py-3"><x-status-badge :status="$booking->status" /></td>
                         <td class="px-4 py-3">
-                            <div class="flex justify-end gap-2">
-                                @if ($booking->status === \App\Enums\BookingStatus::Pending)
-                                    <button type="button" wire:click="changeStatus({{ $booking->id }}, 'confirmed')" class="btn-primary btn-sm">Confirm</button>
-                                @endif
-                                @if ($booking->status === \App\Enums\BookingStatus::Confirmed)
-                                    <button type="button" wire:click="changeStatus({{ $booking->id }}, 'completed')" class="btn-primary btn-sm">Complete</button>
-                                @endif
-                                @if ($booking->status->isActive())
-                                    <button type="button" wire:click="changeStatus({{ $booking->id }}, 'cancelled')"
-                                            wire:confirm="Cancel booking {{ $booking->reference }}?" class="btn-secondary btn-sm text-red-600">Cancel</button>
-                                @endif
-                            </div>
+                            @if ($payingId === $booking->id)
+                                <x-payment-form :booking="$booking" :selected="$paymentMethod" class="ml-auto w-64" />
+                            @else
+                                <div class="flex justify-end gap-2">
+                                    @if ($booking->status->isActive() && ! $booking->isPaid())
+                                        <button type="button" wire:click="startPayment({{ $booking->id }})" class="btn-accent btn-sm whitespace-nowrap">Record payment</button>
+                                    @elseif ($booking->status === \App\Enums\BookingStatus::Pending)
+                                        <button type="button" wire:click="changeStatus({{ $booking->id }}, 'confirmed')" class="btn-primary btn-sm">Confirm</button>
+                                    @elseif ($booking->status === \App\Enums\BookingStatus::Confirmed)
+                                        <button type="button" wire:click="changeStatus({{ $booking->id }}, 'completed')" class="btn-primary btn-sm">Complete</button>
+                                    @endif
+                                    @if ($booking->status->isActive())
+                                        <button type="button" wire:click="changeStatus({{ $booking->id }}, 'cancelled')"
+                                                wire:confirm="Cancel booking {{ $booking->reference }}?" class="btn-secondary btn-sm text-red-600">Cancel</button>
+                                    @endif
+                                </div>
+                            @endif
                         </td>
                     </tr>
                 @empty

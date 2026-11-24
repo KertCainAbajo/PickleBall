@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\BookingStatus;
+use App\Enums\PaymentMethod;
 use App\Models\Booking;
 use App\Models\Court;
 use App\Models\Paddle;
@@ -288,6 +289,13 @@ class BookingServiceTest extends TestCase
     public function test_admin_status_transitions(): void
     {
         $booking = $this->book();
+
+        // Payment comes first.
+        $this->assertRejected('status', fn () => $this->service->changeStatus($booking, BookingStatus::Confirmed));
+        $this->assertRejected('payment_reference', fn () => $this->service->recordPayment($booking, PaymentMethod::GCash));
+        $booking = $this->service->recordPayment($booking, PaymentMethod::GCash, '1234567890');
+        $this->assertTrue($booking->isPaid());
+        $this->assertRejected('payment', fn () => $this->service->recordPayment($booking, PaymentMethod::Cash));
 
         $booking = $this->service->changeStatus($booking, BookingStatus::Confirmed);
         $booking = $this->service->changeStatus($booking, BookingStatus::Completed);

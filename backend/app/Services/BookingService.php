@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\BookingStatus;
+use App\Enums\PaymentMethod;
 use App\Models\Booking;
 use App\Models\BookingPaddle;
 use App\Models\Court;
@@ -165,9 +166,51 @@ class BookingService
                 ]);
             }
 
+            // The customer pays first; only then is the court confirmed (and later completed).
+            if (in_array($status, [BookingStatus::Confirmed, BookingStatus::Completed], true) && ! $booking->isPaid()) {
+                throw ValidationException::withMessages([
+                    'status' => sprintf('Booking %s has ₱%s unpaid. Record the payment before marking it %s.',
+                        $booking->reference, number_format($booking->balanceDue(), 2), $status->value),
+                ]);
+            }
+
             $booking->update([
                 'status' => $status,
                 'cancelled_at' => $status === BookingStatus::Cancelled ? now() : $booking->cancelled_at,
+            ]);
+
+            return $booking->load(['court', 'user', 'rentals.paddle']);
+        });
+    }
+
+    /**
+     * Record that the customer paid the full amount still owed on the booking.
+     * GCash and bank transfers need the transaction reference so the payment can be traced.
+     */
+    public function recordPayment(Booking $booking, PaymentMethod $method, ?string $reference = null): Booking
+    {
+        $reference = trim((string) $reference) ?: null;
+
+        if ($method->needsReference() && $reference === null) {
+            throw ValidationException::withMessages(['payment_reference' => "Enter the {$method->label()} reference number."]);
+        }
+
+        return DB::transaction(function () use ($booking, $method, $reference) {
+            $booking = Booking::whereKey($booking->id)->lockForUpdate()->firstOrFail();
+
+            if (! $booking->status->isActive()) {
+                throw ValidationException::withMessages(['payment' => "A {$booking->status->value} booking cannot take a payment."]);
+            }
+
+            if ($booking->isPaid()) {
+                throw ValidationException::withMessages(['payment' => "Booking {$booking->reference} is already paid."]);
+            }
+
+            $booking->update([
+                'amount_paid' => $booking->total_amount,
+                'payment_method' => $method,
+                'payment_reference' => $reference,
+                'paid_at' => now(),
             ]);
 
             return $booking->load(['court', 'user', 'rentals.paddle']);
